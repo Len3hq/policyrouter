@@ -1,0 +1,14 @@
+{
+  "name": "policyrouter",
+  "private": true,
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "test:contracts": "cd contracts && forge test",
+    "test:fork": "cd contracts && forge test --fork-url ${XLAYER_RPC_URL:-https://rpc.xlayer.tech}"
+  }
+}
