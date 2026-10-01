@@ -24,6 +24,16 @@ export function packPins(pins: readonly boolean[]): Uint8Array {
   return out;
 }
 
+export function toHex(bytes: Uint8Array): `0x${string}` {
+  return `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+export function fromHex(hex: string): Uint8Array {
+  const s = hex.replace(/^0x/, "");
+  if (s.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(s)) throw new Error(`not hex: ${hex}`);
+  return Uint8Array.from({ length: s.length / 2 }, (_, i) => parseInt(s.slice(i * 2, i * 2 + 2), 16));
+}
+
 export function unpackPins(bytes: Uint8Array, count: number): boolean[] {
   if (count > bytes.length * 8) throw new RangeError(`need ${count} pins, got ${bytes.length * 8}`);
   return Array.from({ length: count }, (_, i) => ((bytes[i >> 3]! >> (i % 8)) & 1) === 1);

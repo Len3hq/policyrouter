@@ -67,27 +67,30 @@ The goal is to meet every pass/fail requirement before writing product code.
 
 **Tasks**
 
-1. **Bit encoding** in `packages/policy/src/bits.ts`
+1. [x] **Bit encoding** in `packages/policy/src/bits.ts`
    - `encodeInput({ tier, size, budgetOk, kill }) → bytes` and `decodeOutput(bytes) → { allow, routeTier }`, following the packing found in Phase 0
-2. **Budget Guard truth table** in `packages/policy/src/templates.ts`
+2. [x] **Budget Guard truth table** in `packages/policy/src/templates.ts`
    - `budgetGuard(input) → output`: allow if `kill = 0` and `budget_ok = 1`; `route_tier = tier`
-   - Decide what `route_tier` is when denied, for example `0`, and keep it the same across all templates
+   - Decided: `route_tier` is `0` whenever a request is denied, in every template
    - `circuits/budget-guard.json`: all 64 rows generated from the function
-3. **Build the netlist.** `tapeout()` takes raw netlist bytes (format in `packages/policy/README.md`), so generate it from the truth table by script, or with Fabrica's Verilog-to-NAND compiler, instead of wiring on the canvas. Simulate it locally against all 64 rows, then record the gate count in `circuits/README.md`
-4. **Treasury contract (optional, decide now).** If a contract can be the processor's creator, deploy `Treasury.sol` to create the processor in its constructor, with a fixed public split. If not, create the processor from the deployer wallet
-5. **Deploy the processor** on X Layer mainnet with supply 1,000,000, price 0.0001 OKB, and the stated reserve. Record the addresses in `deployments/xlayer.json`
-6. **Mint transistors and tape out** Budget Guard. Record its circuit ID
-7. **Check script** `circuits/check.ts <circuitId> <template>` calls `eval()` for all 64 inputs and compares each result with `packages/policy`
+3. [x] **Build the netlist** with `NetlistBuilder` in `packages/policy/src/netlist.ts`, simulated locally against all 64 rows. Budget Guard is **8 gates** (`circuits/README.md`)
+4. [x] **Treasury contract**: `contracts/src/PolicyTreasury.sol` creates the processor in its constructor and receives all mint proceeds. It sends 50% to running costs and keeps 50% in a pool that grants up to 50 free transistors per new owner for their first custom policy. It has no owner and no setters
+5. [ ] **Deploy the processor** on X Layer mainnet with supply 1,000,000 and price 0.0001 OKB. `contracts/script/DeployPhase1.s.sol` does steps 5 and 6 and writes `deployments/xlayer.json`. It was rehearsed on a mainnet fork using the real deployer and its real balance. Needs your keystore password to broadcast
+6. [ ] **Mint transistors and tape out** Budget Guard. Record its circuit ID
+7. [x] **Check script** `circuits/check.ts <circuitId> <template>` calls `eval()` for all 64 inputs at a pinned block and compares each result with the JSON. It also checks the stored netlist, pin counts and gate count. It printed 64/64 against the fork rehearsal
 
 **Tests**
 
 | Test | Where | Asserts |
 | --- | --- | --- |
-| Encode/decode round trip | `packages/policy` Vitest | For all 64 inputs, `decode(encode(x))` returns `x`; output decoding is correct for all 8 output values |
-| Budget Guard table | `packages/policy` Vitest | `kill = 1` always denies; `budget_ok = 0` always denies; otherwise allow with `route_tier = tier` (64 rows) |
-| Golden file | `packages/policy` Vitest | The generated `budget-guard.json` matches the committed file (catches silent edits) |
-| Treasury | `contracts` forge, fork | The constructor creates a processor through the real factory; mint proceeds land in the treasury; the split pays out to fixed addresses; nobody can change the split |
-| On-chain match | `circuits/check.ts` against mainnet | 64 of 64 rows match. Save the output to `circuits/proof/budget-guard.txt` for the demo |
+| ✅ Encode/decode round trip | `packages/policy` Vitest | For all 64 inputs, `decode(encode(x))` returns `x`; output decoding is correct for all 8 output values |
+| ✅ Budget Guard table | `packages/policy` Vitest | `kill = 1` always denies; `budget_ok = 0` always denies; otherwise allow with `route_tier = tier` (64 rows); the circuit simulation equals the rule on all 64 |
+| ✅ Netlist | `packages/policy` Vitest | Encoding matches the 2-gate circuit proven on chain in Phase 0; decode rejects bad opcodes, truncation and forward references |
+| ✅ Golden file | `circuits` Vitest | The generated `budget-guard.json` matches the committed file (catches silent edits) |
+| ✅ Treasury | `contracts` forge, fork (12 tests incl. fuzz) | The treasury is the creator of a real processor; proceeds split exactly; `withdrawOps` pays only `ops`; grants are limited to one per address, `maxGrant`, the granter and the pool size; a grant's own mint price returns to the pool; granted transistors can tape out; plain transfers are rejected |
+| ✅ Budget Guard on fork | `contracts` forge, fork (4 tests) | Tape-out burns 8 transistors; the stored netlist equals the JSON; `eval()` matches all 64 rows |
+| ✅ Deploy rehearsal | anvil fork, real deployer address impersonated | The script broadcasts all three transactions, `eval()` matches 64/64, and 0.0006 OKB is left |
+| ⬜ On-chain match | `circuits/check.ts` against mainnet | 64 of 64 rows match. Save the output to `circuits/proof/budget-guard.txt` for the demo |
 
 **Exit gate:** `check.ts` prints 64/64 on mainnet. Processor address, deployer address, supply, price and cap are in the README. **At this point the project qualifies.**
 

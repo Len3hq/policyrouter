@@ -1,0 +1,16 @@
+{
+  "block": 72128073,
+  "budgetGuardCircuitId": 1,
+  "chainId": 196,
+  "deployer": "0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3",
+  "factory": "0x1f09DAeFA827f02CBb40967cc91b259763760761",
+  "maxGrant": 50,
+  "name": "PolicyRouter",
+  "opsBps": 5000,
+  "processor": "0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99",
+  "symbol": "PRT",
+  "transistorPriceWei": 100000000000000,
+  "transistorSupply": 1000000,
+  "transistors": "0x8B37B74083Eb87A5B725B152621c729b478262E9",
+  "treasury": "0xad56De63a2F9F5f1170E9044046C15ee467b6288"
+}
