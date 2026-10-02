@@ -2,7 +2,7 @@
 
 Sep 30, 2026 · Christian Obi
 
-> **Deployed:** the PolicyRouter processor is live on X Layer mainnet at `0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99` (created by PolicyTreasury `0xad56De63a2F9F5f1170E9044046C15ee467b6288`), with Budget Guard taped out as circuit 1. See [docs/deployments.md](docs/deployments.md).
+> **Deployed:** the PolicyRouter processor is live on X Layer mainnet at `0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99` (created by PolicyTreasury `0xad56De63a2F9F5f1170E9044046C15ee467b6288`), with Budget Guard taped out as circuit 1. PolicyRegistry `0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a` and CreditEscrow `0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A` are live. See [docs/deployments.md](docs/deployments.md).
 
 ## Summary
 

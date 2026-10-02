@@ -1,7 +1,7 @@
 // Reads policy state from X Layer at one pinned block and calls eval() at that same block, so a
 // receipt records exactly the state the router acted on.
 
-import { createPublicClient, http, type Address, type Hex, type PublicClient } from "viem";
+import { createPublicClient, fallback, http, type Address, type Hex, type PublicClient, type Transport } from "viem";
 
 const registryAbi = [
   {
@@ -58,6 +58,7 @@ export interface ChainReader {
 }
 
 export interface ChainConfig {
+  /** One RPC URL, or several separated by commas: each is tried in order when one fails. */
   rpcUrl: string;
   processor: Address;
   registry: Address;
@@ -68,8 +69,19 @@ export interface ChainConfig {
   timeoutMs: number;
 }
 
+/**
+ * One retry per URL absorbs a single slow response from a public RPC; with several URLs, each is tried
+ * in order. If every attempt fails the read throws, and the router refuses the request (fail closed).
+ */
+export function rpcTransport(rpcUrl: string, timeoutMs: number): Transport {
+  const urls = rpcUrl.split(",").map((u) => u.trim()).filter(Boolean);
+  if (urls.length === 0) throw new Error("no RPC URL configured");
+  const one = (u: string) => http(u, { timeout: timeoutMs, retryCount: 1, retryDelay: 150 });
+  return urls.length === 1 ? one(urls[0]!) : fallback(urls.map(one), { rank: false });
+}
+
 export function createChainReader(cfg: ChainConfig, client?: PublicClient): ChainReader {
-  const c = client ?? createPublicClient({ transport: http(cfg.rpcUrl, { timeout: cfg.timeoutMs, retryCount: 0 }) });
+  const c = client ?? createPublicClient({ transport: rpcTransport(cfg.rpcUrl, cfg.timeoutMs) });
   let cachedBlock: { n: bigint; at: number } | undefined;
   const stateCache = new Map<string, PolicyState>();
 

@@ -73,11 +73,23 @@ export function createApp(deps: AppDeps): Hono {
     if (!/^0x[0-9a-fA-F]{64}$/.test(id)) return fail(c, 404, ERR.notFound());
     const stored = store.getReceipt(id.toLowerCase());
     if (!stored) return fail(c, 404, ERR.notFound());
+    const batch = stored.batchId === null ? undefined : store.getBatch(stored.batchId);
     return c.json({
       receipt: receiptToJson(stored.receipt),
       receiptHash: stored.hash,
       allowed: stored.allowed,
       batchId: stored.batchId,
+      // Check on chain with CreditEscrow.isInBatch(batchId, receiptHash, proof)
+      settlement: batch
+        ? {
+            batchId: batch.batchId,
+            status: batch.status,
+            root: batch.root,
+            proof: stored.proof,
+            txHash: batch.txHash,
+            blockNumber: batch.blockNumber?.toString() ?? null,
+          }
+        : null,
     });
   });
 

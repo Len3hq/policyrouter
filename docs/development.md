@@ -55,6 +55,16 @@ The fork tests:
 
 CI runs all of the above on every push. See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
+## Running the router locally
+
+```bash
+pnpm --filter @policyrouter/router start      # reads ../.env; stop with Ctrl-C or SIGTERM
+pnpm --filter @policyrouter/router settle     # settle every unsettled receipt now
+pnpm --filter @policyrouter/router verify-receipt <requestId>
+```
+
+The router shuts down cleanly on SIGINT/SIGTERM: it stops the settler and price feed, finishes in-flight requests and closes SQLite. If a price source's host doesn't resolve from your network, exit waits for that DNS lookup to time out (~30 s), so leave the source out of `PRICE_SOURCES`.
+
 ## Changing or adding a policy
 
 1. Edit or add a template in `packages/policy/src/templates.ts` and add it to `TEMPLATES`.

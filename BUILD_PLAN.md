@@ -117,7 +117,7 @@ Built and tested. Reference: [docs/contracts.md](docs/contracts.md).
    - `budgetOk(agentId)`, `budgetOkForKey(keyHash)`, `spentToday`, `balanceOf`, `batch`, `isInBatch(batchId, receiptHash, proof)`
    - `claimEarnings()` pays settled fees to the fixed `payee`
 3. [x] **Deploy script** `script/DeployPhase2.s.sol` fills in `policyRegistry`, `creditEscrow`, `router` and `escrowPayee` in `deployments/xlayer.json`. Dry-run and anvil rehearsal pass (about 0.0001 OKB of gas)
-4. [ ] **Broadcast** to mainnet (needs the deployer keystore password)
+4. [x] **Broadcast** to mainnet: PolicyRegistry `0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a` (block 72,159,847), CreditEscrow `0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A` (block 72,159,849). Wiring, roles and circuit checks were confirmed on chain, and the bytecode matches the build
 5. [ ] **Verify source on OKLink** with `scripts/verify-contracts.sh` (needs an OKLink API key). This also verifies the Phase 1 PolicyTreasury
 
 **Tests**
@@ -151,7 +151,7 @@ Fork (`test/fork/Phase2Fork.t.sol`, against the live processor)
 - [x] The router's decision (registry + escrow → input byte → live `eval()`) follows chain state: no deposit denies, funded allows, cap reached denies, next day allows, kill switch denies, unknown key denies
 - [x] Settle, claim and withdraw move real OKB
 
-**Exit gate:** all forge tests pass on the fork ✅. Coverage is ≥ 90% of lines on both contracts ✅ (100%). Both deployed to mainnet and verified on OKLink ⬜.
+**Exit gate:** all forge tests pass on the fork ✅. Coverage is ≥ 90% of lines on both contracts ✅ (100%). Both deployed to mainnet ✅. Verified on OKLink ⬜.
 
 ---
 
@@ -185,7 +185,7 @@ The goal is one real request going agent → router → `eval()` → DeepSeek �
 
 **Tests**
 
-Unit (Vitest, 61 tests, `router/test/unit`)
+Unit (Vitest, 62 tests at the end of Phase 3, `router/test/unit`)
 
 | Area | Cases |
 | --- | --- |
@@ -214,32 +214,44 @@ Process-level rehearsal (manual, fork): the real server process, `key:create`, `
 
 Live smoke test (manual, mainnet + real DeepSeek)
 
-- [ ] Needs the Phase 2 broadcast, `DEEPSEEK_API_KEY`, and `ROUTER_PRIVATE_KEY` in `.env`. Then: `key:create` → register and fund → `curl` → `verify-receipt <requestId>`
+- [x] Run on 2026-10-02 against X Layer mainnet and DeepSeek. Agent 1 was registered with Budget Guard and a cap of 0.0001 OKB/day ([tx](https://www.oklink.com/xlayer/tx/0xf9f2be50241e97ca9226440b13a2b7ec970704cdd08aab04d2f25ac39b8e060d)) and funded with 0.0003 OKB ([tx](https://www.oklink.com/xlayer/tx/0xff043383844deea5c99c71f28d766fa53040547113acc1afe6c07d03caf594ab)), owned by the router wallet for the test
+  - `cheap`, not streaming: 200, served by `deepseek-flash`, input `0b010000` → output `0b001`, block 72,160,362, 295,964,125,561 wei at OKB $122.65 (peak). `verify-receipt`: signature, policy and cost all OK
+  - `frontier`, streaming: 200, `deepseek-v4-pro` with thinking on (13 reasoning chunks), receipt as the last event; all three checks OK
+  - Kill switch on ([tx](https://www.oklink.com/xlayer/tx/0x287d4551187b9a15bc6224b200ac8a817e6c0b5dc9c1c95d60ef71ecfaafff34)): 403 `policy_denied`, provider not called, `eval(1, 0x30)` = `0x00` verified. Kill switch off ([tx](https://www.oklink.com/xlayer/tx/0x35b8c43066071e13f6718ca595b3c506afd7b3983afcf5ed7963abb57f583138)): 200 again
+  - No API key, DeepSeek key or router key in the server log
+  - Found during the run: one public-RPC timeout made the first attempt fail closed (503). Added one retry per RPC URL and comma-separated fallback RPCs (`XLAYER_RPC_URL`)
 
-**Exit gate:** all unit and integration tests pass ✅. One live request is served on mainnet with a receipt that verifies ⬜ (blocked on the Phase 2 deploy).
+**Exit gate:** all unit and integration tests pass ✅. One live request is served on mainnet with a receipt that verifies ✅.
 
 ---
 
 ## Phase 4 — Settler
 
+Built, tested, and run on mainnet. Reference: [docs/router.md#settlement](docs/router.md#settlement).
+
 **Tasks**
 
-1. Every N minutes (start with 5), collect unsettled receipts
-2. Build a tree with `@openzeppelin/merkle-tree`, where each leaf is the hash of the receipt's EIP-712 struct, using `packages/policy`
-3. Sum cost per key and call `CreditEscrow.settle(batchId, root, entries)` from the router wallet
-4. Store the batch, the tx hash, and every receipt's Merkle proof. Add `GET /v1/receipts/:id` returning the receipt, its proof and `batchId`
-5. Retry safely: a batch is only marked settled after the tx is confirmed; a resend uses the same `batchId`, so a double settle reverts
+1. [x] Every `SETTLE_INTERVAL_MS` (default 5 minutes) inside the router, or once with `pnpm --filter @policyrouter/router settle`, collect unsettled receipts: oldest first, up to 2,000 receipts and 100 distinct agents per batch
+2. [x] Build a tree with `@openzeppelin/merkle-tree` (`batchTree` in `packages/policy`); each leaf is the receipt's EIP-712 hash. Denied receipts are included, so denials can be proven settled
+3. [x] Sum cost per agent and call `CreditEscrow.settle(batchId, root, entries)` from the router wallet; `batchId` is read from `nextBatchId()` on chain. Record the `debited` amount from the `Settled` event
+4. [x] Store the batch, the tx hash, and every receipt's Merkle proof. `GET /v1/receipts/:id` returns `settlement { batchId, status, root, proof, txHash, blockNumber }`. `verify-receipt` checks it on chain through `isInBatch`
+5. [x] Retry safely: the batch and proofs are committed before sending. An open batch is reconciled against the chain before anything new: landed means confirmed, pending means wait, gone means resend with the same id, and a different root means conflict and release. A resend of a landed batch reverts on chain and is reconciled, never double debited
+6. [x] **Extra:** clean shutdown on SIGINT/SIGTERM
+7. [x] **Extra:** price sources back off after failures (5 minutes per failure, up to 30), and `PRICE_SOURCES` chooses them. Found here: OKX's host doesn't resolve on this network, and a hung DNS lookup also delayed process exit
 
 **Tests**
 
-- [ ] Unit: tree built from 1, 2 and 1,000 receipts; every proof verifies locally
-- [ ] Unit: per-key sums match the sum of receipt costs
-- [ ] Integration (anvil fork): after a settle, escrow balances drop by the summed cost and `rootOf(batchId)` matches
-- [ ] Integration: each stored proof verifies against the on-chain root via `MerkleProof.verify` (an `eth_call` to a tiny test helper)
-- [ ] Integration: kill the settler between sending and confirming, restart it, and check that nothing is double debited or lost
-- [ ] Integration: an empty interval sends no transaction
+- [x] Unit: tree built from 1, 2 and 1,000 receipts; every proof verifies locally
+- [x] Unit: per-agent sums match the sum of receipt costs; zero-cost agents are left out of the entries but kept in the tree; the agent cap carries the rest to the next batch
+- [x] Unit (fake escrow that enforces in-order, once-only ids): crash after commit leads to a resend; crash after send with the tx mined is confirmed without resending; tx pending means wait; tx dropped means resend with the same id; a blind resend reverts and is reconciled; conflict releases receipts into the next batch; one cycle at a time; the receipts endpoint returns a proof that verifies
+- [x] Integration (anvil fork): after a settle, escrow balances drop by each agent's summed cost, and `batch(batchId)` holds our root
+- [x] Integration: each stored proof, a denial included, verifies against the on-chain root via `CreditEscrow.isInBatch`; a proof for the wrong receipt doesn't
+- [x] Integration: crash between sending and confirming, and between committing and sending, and with the tx held in the mempool (automine off). Nothing is double debited or lost
+- [x] Integration: an empty interval sends no transaction (router nonce unchanged)
 
-**Exit gate:** a settled batch is visible on OKLink, and a receipt from it verifies against the on-chain root.
+**Mainnet run (2026-10-02):** batch 0 settled the 4 receipts from the Phase 3 live test (3 served, 1 denied) in [tx `0xd472e211…`](https://www.oklink.com/xlayer/tx/0xd472e211c7db8b2fd414ea68b7b5a8e1fc676d73a310dc65cde9830a30c10d66) at block 72,161,097, root `0xe4568b…b31e`. Agent 1's balance dropped by exactly 2,109,162,756,815 wei (the receipts' total), and `spentToday` and `earned` match. `verify-receipt` passes all four checks (signature, policy, cost, settlement) for the served `cheap` and `frontier` receipts and for the denied one.
+
+**Exit gate:** a settled batch is visible on OKLink ✅, and a receipt from it verifies against the on-chain root ✅.
 
 ---
 

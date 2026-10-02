@@ -5,8 +5,8 @@ PolicyRouter has three contracts of its own. The TapeOut processor and transisto
 | Contract | Job | Status |
 | --- | --- | --- |
 | [PolicyTreasury](../contracts/src/PolicyTreasury.sol) | Created the processor; receives and splits transistor sales | Live: [deployments.md](deployments.md) |
-| [PolicyRegistry](../contracts/src/PolicyRegistry.sol) | Links each agent's API key to its owner, policy circuit, daily cap and kill switch | Built and tested; mainnet deploy pending |
-| [CreditEscrow](../contracts/src/CreditEscrow.sol) | Holds prepaid OKB, tracks daily spend, settles usage in batches with Merkle roots of receipts | Built and tested; mainnet deploy pending |
+| [PolicyRegistry](../contracts/src/PolicyRegistry.sol) | Links each agent's API key to its owner, policy circuit, daily cap and kill switch | Live: [`0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a`](https://www.oklink.com/xlayer/address/0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a) |
+| [CreditEscrow](../contracts/src/CreditEscrow.sol) | Holds prepaid OKB, tracks daily spend, settles usage in batches with Merkle roots of receipts | Live: [`0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A`](https://www.oklink.com/xlayer/address/0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A) |
 
 ABIs are in [`contracts/abi/`](../contracts/abi). PolicyTreasury is covered in [economics.md](economics.md). This page covers the other two.
 

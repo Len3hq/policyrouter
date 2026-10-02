@@ -16,7 +16,7 @@ export OPENAI_BASE_URL=https://api.policyrouter.xyz/v1
 export OPENAI_API_KEY=pr-live-...
 ```
 
-> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. Phase 2's PolicyRegistry and CreditEscrow are built and tested (100% line coverage) and waiting for their mainnet deploy. The OpenAI-compatible router (Phase 3) is built and tested end to end against a mainnet fork. The settler and web app come next; see [BUILD_PLAN.md](BUILD_PLAN.md).
+> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. PolicyRegistry and CreditEscrow (Phase 2) are live too. The OpenAI-compatible router (Phase 3) has served live requests on mainnet through DeepSeek, with signed receipts that verify on chain. The settler (Phase 4) has posted the first batch on chain: every receipt in it proves its inclusion through `CreditEscrow.isInBatch`. The remaining templates and the web app come next; see [BUILD_PLAN.md](BUILD_PLAN.md).
 
 ## Deployed on X Layer mainnet (chain 196)
 
@@ -25,6 +25,8 @@ export OPENAI_API_KEY=pr-live-...
 | PolicyRouter processor (circuits, ERC-721) | [`0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99`](https://www.oklink.com/xlayer/address/0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99) |
 | Transistors (ERC-1155) | [`0x8B37B74083Eb87A5B725B152621c729b478262E9`](https://www.oklink.com/xlayer/address/0x8B37B74083Eb87A5B725B152621c729b478262E9) |
 | PolicyTreasury (processor creator) | [`0xad56De63a2F9F5f1170E9044046C15ee467b6288`](https://www.oklink.com/xlayer/address/0xad56De63a2F9F5f1170E9044046C15ee467b6288) |
+| PolicyRegistry (key → owner, circuit, cap, kill switch) | [`0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a`](https://www.oklink.com/xlayer/address/0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a) |
+| CreditEscrow (prepaid OKB, daily spend, settlement) | [`0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A`](https://www.oklink.com/xlayer/address/0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A) |
 | Deployment wallet | [`0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3`](https://www.oklink.com/xlayer/address/0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3) |
 | Budget Guard circuit | ID `1` on the processor |
 

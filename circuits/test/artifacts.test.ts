@@ -12,6 +12,9 @@ describe("deployments/xlayer.json", () => {
     expect(d.treasury).toBe(POLICYROUTER.treasury);
     expect(d.processor).toBe(POLICYROUTER.processor);
     expect(d.transistors).toBe(POLICYROUTER.transistors);
+    expect(d.policyRegistry).toBe(POLICYROUTER.policyRegistry);
+    expect(d.creditEscrow).toBe(POLICYROUTER.creditEscrow);
+    expect(d.router).toBe(POLICYROUTER.router);
     expect(BigInt(d.budgetGuardCircuitId)).toBe(POLICYROUTER.circuits["budget-guard"]);
   });
 });

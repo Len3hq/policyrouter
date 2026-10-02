@@ -84,3 +84,58 @@ describe("price feed", () => {
     expect((await feed.refresh())?.okbUsdE8).toBe(9_000_000_000n);
   });
 });
+
+describe("price source back-off", () => {
+  it("skips a failing source for a while, trying healthy ones first", async () => {
+    let now = 0;
+    const okx = src("okx", [new Error("blocked")]);
+    const cg = src("coingecko", ["122"]);
+    const feed = createPriceFeed({ sources: [okx, cg], backoffMs: 60_000, now: () => now });
+    await feed.refresh();
+    expect(okx.calls).toBe(1);
+    now += 30_000;
+    await feed.refresh();
+    expect(okx.calls).toBe(1); // resting
+    expect(cg.calls).toBe(2);
+    now += 31_000;
+    await feed.refresh();
+    expect(okx.calls).toBe(2); // tried again after its back-off
+  });
+
+  it("backs off longer after repeated failures, up to the cap", async () => {
+    let now = 0;
+    const okx = src("okx", [new Error("blocked")]);
+    const cg = src("coingecko", ["122"]);
+    const feed = createPriceFeed({ sources: [okx, cg], backoffMs: 60_000, maxBackoffMs: 150_000, now: () => now });
+    await feed.refresh(); // failure 1 → rest 60 s
+    now += 61_000;
+    await feed.refresh(); // failure 2 → rest 120 s
+    now += 100_000;
+    await feed.refresh();
+    expect(okx.calls).toBe(2);
+    now += 21_000;
+    await feed.refresh(); // failure 3 → rest min(180, 150) s
+    expect(okx.calls).toBe(3);
+    now += 149_000;
+    await feed.refresh();
+    expect(okx.calls).toBe(3);
+  });
+
+  it("still tries a resting source as a last resort when every healthy one fails", async () => {
+    let now = 0;
+    const okx = src("okx", [new Error("blocked"), "121"]);
+    const cg = src("coingecko", ["122", new Error("down")]);
+    const feed = createPriceFeed({ sources: [okx, cg], now: () => now });
+    await feed.refresh(); // okx fails → resting; coingecko answers
+    now += 1_000;
+    const q = await feed.refresh(); // coingecko fails → okx tried anyway
+    expect(q?.source).toBe("okx");
+  });
+
+  it("selects sources by name and order, and rejects unknown names", async () => {
+    const { selectSources } = await import("../../src/price.ts");
+    expect(selectSources(undefined).map((s) => s.name)).toEqual(["okx", "coingecko", "coinpaprika"]);
+    expect(selectSources("coinpaprika, coingecko").map((s) => s.name)).toEqual(["coinpaprika", "coingecko"]);
+    expect(() => selectSources("okx,binance")).toThrow(/unknown price source "binance"/);
+  });
+});

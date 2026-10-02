@@ -18,6 +18,10 @@ export const POLICYROUTER = {
   treasury: "0xad56De63a2F9F5f1170E9044046C15ee467b6288",
   processor: "0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99",
   transistors: "0x8B37B74083Eb87A5B725B152621c729b478262E9",
+  policyRegistry: "0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a",
+  creditEscrow: "0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A",
+  /** The only address CreditEscrow accepts settle() from, and the receipt signer */
+  router: "0xbFF88F4CBe6723467A1c9BBbF187d8e2aB8FD5f3",
   circuits: {
     "budget-guard": 1n,
   },

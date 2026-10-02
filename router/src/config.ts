@@ -18,6 +18,10 @@ export interface Config {
   rpcTimeoutMs: number;
   priceRefreshMs: number;
   priceMaxAgeMs: number;
+  /** Comma-separated price source names in order of preference; empty = all defaults */
+  priceSources: string | undefined;
+  /** 0 disables the in-process settler */
+  settleIntervalMs: number;
 }
 
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -51,5 +55,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     rpcTimeoutMs: Number(env.RPC_TIMEOUT_MS ?? 5000),
     priceRefreshMs: Number(env.PRICE_REFRESH_MS ?? 60_000),
     priceMaxAgeMs: Number(env.PRICE_MAX_AGE_MS ?? 600_000),
+    priceSources: env.PRICE_SOURCES,
+    settleIntervalMs: Number(env.SETTLE_INTERVAL_MS ?? 300_000),
   };
 }

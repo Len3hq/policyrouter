@@ -113,3 +113,12 @@ describe("policy checker", () => {
     expect(chain.evalCalls).toBe(0);
   });
 });
+
+describe("RPC transport", () => {
+  it("accepts one URL or a comma-separated fallback list, and rejects none", async () => {
+    const { rpcTransport } = await import("../../src/chain.ts");
+    expect(rpcTransport("https://a.example", 1000)({}).config.type).toBe("http");
+    expect(rpcTransport("https://a.example, https://b.example", 1000)({}).config.type).toBe("fallback");
+    expect(() => rpcTransport(" , ", 1000)).toThrow(/no RPC URL/);
+  });
+});

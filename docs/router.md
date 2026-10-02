@@ -26,6 +26,10 @@ POST /v1/chat/completions
   8. meter         provider-reported tokens (cache hit / miss / output) × the served model's
                    peak or off-peak price → cost in wei
   9. receipt       EIP-712 signed by the router key, stored, returned with the response
+
+every SETTLE_INTERVAL_MS (default 5 min)
+ 10. settle        unsettled receipts → Merkle root + per-agent totals → CreditEscrow.settle()
+                   each receipt stores its proof; GET /v1/receipts/:id returns it
 ```
 
 The router **fails closed**: if it can't read chain state or call `eval()`, it refuses the request.
@@ -36,7 +40,7 @@ The router **fails closed**: if it can't read chain state or call `eval()`, it r
 | --- | --- |
 | `POST /v1/chat/completions` | OpenAI chat completion, streaming or not, plus `policyrouter_receipt` |
 | `GET /v1/models` | The catalog: `cheap` (tier 0), `standard` (1), `premium` (2), `frontier` (3) |
-| `GET /v1/receipts/:requestId` | A stored receipt, its EIP-712 hash, whether it was allowed, and its settlement batch (Phase 4) |
+| `GET /v1/receipts/:requestId` | A stored receipt, its EIP-712 hash, whether it was allowed, and once settled: `settlement { batchId, status, root, proof, txHash, blockNumber }` |
 | `GET /health` | Router address and EIP-712 domain |
 
 ### Where the receipt is
@@ -73,7 +77,7 @@ The router **fails closed**: if it can't read chain state or call `eval()`, it r
 ```
 
 - **Signed as EIP-712** typed data. The domain is `{ name: "PolicyRouter", version: "1", chainId: 196, verifyingContract: CreditEscrow }`. The type is defined in [`packages/policy/src/receipt.ts`](../packages/policy/src/receipt.ts).
-- **The EIP-712 hash is also the Merkle leaf** when the settler posts the batch (Phase 4), so `CreditEscrow.isInBatch` proves the exact signed receipt was settled.
+- **The EIP-712 hash is also the Merkle leaf** when the settler posts the batch, so `CreditEscrow.isInBatch(batchId, receiptHash, proof)` proves the exact signed receipt was settled. Denied receipts go into the tree too, so a denial can be proven as well.
 - **`blockNumber`** is the block the router read chain state at and called `eval()` at, so a verifier sees exactly what the router saw.
 - **`costWei` can be recomputed** from the receipt alone: the served model, `timestamp` (which picks peak or off-peak), the prompt, cached and completion token counts, and `okbUsdE8`, the OKB/USD rate used (8 decimals, so `12204000000` = $122.04). `verify-receipt` does this check.
 
@@ -84,7 +88,20 @@ pnpm --filter @policyrouter/router verify-receipt <requestId>          # fetches
 pnpm --filter @policyrouter/router verify-receipt --file response.json
 ```
 
-It checks that the signature recovers to `ROUTER_ADDRESS`, re-runs `eval(circuitId, inputBits)` at `blockNumber`, and recomputes `costWei` from the catalog and the receipt's own token counts, time and OKB rate. It also prints the `cast call` so anyone can repeat the check without this repo.
+It runs four checks:
+1. the signature recovers to `ROUTER_ADDRESS`;
+2. re-running `eval(circuitId, inputBits)` at `blockNumber` gives `outputBits`;
+3. `costWei` recomputes from the catalog and the receipt's own token counts, time and OKB rate;
+4. once settled, `CreditEscrow.isInBatch` returns true for the receipt with its proof.
+
+Mainnet example, the first served request (batch 0):
+
+```
+  signature: OK  (signed by 0xbFF8…D5f3, router is 0xbFF8…D5f3)
+  policy:    OK  (eval(1, 0x10) at block 72160362 on 0x11FF…6f99 = 0x01, receipt says 0x01)
+  cost:      OK  (14 prompt / 0 cached / 24 completion tokens, peak, OKB at $122.65 → 295964125561 wei)
+  settled:   OK  (isInBatch(0, 0x37858b22…, 2-step proof) on 0xCc2d…7F7A, tx 0xd472e211…)
+``` It also prints the `cast call` so anyone can repeat the check without this repo.
 
 ## Model catalog
 
@@ -129,6 +146,30 @@ The router never uses a hard-coded OKB price.
 
 **Size buckets:** prompt tokens are estimated at about 4 characters per token, then `max_tokens` (or `max_completion_tokens`) is added, defaulting to 4,096. Buckets are split at 2,000, 8,000 and 32,000 tokens. The bucket used is recorded in the receipt's input bits.
 
+## Settlement
+
+[`router/src/settler.ts`](../router/src/settler.ts) runs inside the router every `SETTLE_INTERVAL_MS` (default 5 minutes). `pnpm --filter @policyrouter/router settle` runs the same logic once, until nothing is left.
+
+Each cycle:
+1. Takes the oldest unsettled receipts (up to 2,000, from at most 100 distinct agents, to keep the transaction within gas limits).
+2. Builds a Merkle tree over their EIP-712 hashes, using `batchTree` in `@policyrouter/policy`. This is the same encoding `CreditEscrow.isInBatch` checks.
+3. Sums the cost per agent. Agents whose receipts cost nothing are left out of the entries, but their receipts stay in the tree.
+4. Reads `nextBatchId` from the chain, and **commits the batch, its receipts and every proof to SQLite before sending anything**.
+5. Calls `CreditEscrow.settle(batchId, root, entries)` from the router wallet, waits for it, and records the tx hash, block and the `debited` amount from the `Settled` event.
+
+An interval with no receipts sends no transaction.
+
+**Crash safety.** The contract accepts each batch id once and in order. Before building a new batch, the settler reconciles any unfinished one against the chain:
+
+| Found on chain | What the settler does |
+| --- | --- |
+| Our batch id holds our root | Marks it confirmed. Nothing is resent |
+| Our tx is still pending | Waits for it |
+| Not landed, and the tx is gone or failed | Resends the same id, root and entries |
+| Our batch id holds a different root | Conflict: our receipts are released into the next batch |
+
+So a crash between any two steps can't lose a receipt or debit an agent twice. Each of these paths is tested against the real contract on a fork.
+
 ## Running it
 
 ```bash
@@ -141,8 +182,11 @@ pnpm --filter @policyrouter/router start
 | `ROUTER_PRIVATE_KEY` | Signs receipts. Must match the escrow's `router`. Export it from the keystore with `cast wallet decrypt-keystore policyrouter-router` (it asks for the keystore password and prints the key, so do it in a private terminal) |
 | `PROCESSOR_ADDRESS`, `POLICY_REGISTRY_ADDRESS`, `CREDIT_ESCROW_ADDRESS` | From `deployments/xlayer.json`. The router refuses to start with a zero address |
 | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL` | Provider credentials, server side only |
+| `XLAYER_RPC_URL` | One RPC URL or several, comma-separated. Each is retried once and then the next is tried. If all fail, the request is refused |
 | `BLOCK_CACHE_MS` | How long a block number is reused (default 1000). Chain state is cached per block, so this bounds how stale a kill switch can be |
 | `RATE_LIMIT_PER_MINUTE` | Per key (default 60) |
+| `SETTLE_INTERVAL_MS` | How often the in-process settler runs (default 300000; `0` turns it off) |
+| `PRICE_SOURCES` | OKB price sources in order, from `okx`, `coingecko`, `coinpaprika` (default: all three). Leave out any your network can't reach: a host that doesn't resolve makes each lookup hang for ~30 s and delays shutdown |
 | `PRICE_REFRESH_MS`, `PRICE_MAX_AGE_MS` | Live OKB price refresh (default 60 s) and the maximum age before charged requests are refused (default 10 min) |
 | `DATABASE_PATH` | SQLite file, relative to `router/` |
 
@@ -165,7 +209,7 @@ This prints the key once, stores only its hash, and prints the `cast send` comma
 
 | Suite | Command | What it covers |
 | --- | --- | --- |
-| Unit (61) | `pnpm --filter @policyrouter/router test` | Catalog, USD→OKB conversion at the live rate, the price feed (fallback order, junk, expiry, jump guard), peak hours, cache-aware pricing and size buckets; refusing charged requests with no fresh price; forcing the tier's thinking mode; keys; rate limit; log redaction; the policy checker (allow, downgrade, deny, and refusing on eval failure, read failure or empty output); the full HTTP gateway with fake chain and provider (auth, validation, 429, deny, downgrade, 503, 502 without leaks, streaming, receipts, models) |
-| Integration (10) | `pnpm --filter @policyrouter/router test:integration` | A real router against an anvil fork of X Layer: Phase 2 deployed on the fork, Cheap Only taped out on the live processor, the real chain reader and provider adapter, and a mock provider. Covers allow, downgrade, kill switch, cap reached, unfunded, unknown key, RPC down, streaming, receipt replay, and checking no secret is logged |
+| Unit (82) | `pnpm --filter @policyrouter/router test` | Catalog, USD→OKB conversion at the live rate, the price feed (fallback order, junk, expiry, jump guard), peak hours, cache-aware pricing and size buckets; refusing charged requests with no fresh price; price source back-off and selection; batch building (trees of 1, 2 and 1,000, per-agent sums, agent cap); the settler's crash, pending, dropped-tx and conflict paths against a fake escrow; forcing the tier's thinking mode; keys; rate limit; log redaction; the policy checker (allow, downgrade, deny, and refusing on eval failure, read failure or empty output); the full HTTP gateway with fake chain and provider (auth, validation, 429, deny, downgrade, 503, 502 without leaks, streaming, receipts, models) |
+| Integration (15) | `pnpm --filter @policyrouter/router test:integration` | A real router against an anvil fork of X Layer: Phase 2 deployed on the fork, Cheap Only taped out on the live processor, the real chain reader and provider adapter, and a mock provider. Covers allow, downgrade, kill switch, cap reached, unfunded, unknown key, RPC down, streaming, receipt replay, and checking no secret is logged. Settler: balances drop by each agent's sum, the root is on chain, every proof (a denial included) verifies in `isInBatch`, an empty interval sends nothing, and crashes after commit, after send, and with the tx still in the mempool are recovered without double debits |
 
 The integration suite needs `anvil` (Foundry) and runs in CI.

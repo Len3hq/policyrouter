@@ -9,8 +9,8 @@ flowchart TB
     subgraph XL["X Layer mainnet"]
         Processor["PolicyRouter processor ✅<br/>Policy circuits (ERC-721)<br/>eval(): bits in, bits out"]
         Treasury["PolicyTreasury ✅<br/>Processor creator<br/>Splits transistor sales"]
-        Registry["PolicyRegistry<br/>Key → owner, circuit, cap<br/>Kill switch"]
-        Escrow["CreditEscrow<br/>OKB deposits, daily spend<br/>settle() with Merkle roots"]
+        Registry["PolicyRegistry ✅<br/>Key → owner, circuit, cap<br/>Kill switch"]
+        Escrow["CreditEscrow ✅<br/>OKB deposits, daily spend<br/>settle() with Merkle roots"]
     end
     Treasury -. created .-> Processor
     Router -- "eval()" --> Processor
@@ -30,9 +30,9 @@ flowchart TB
 | PolicyTreasury | ✅ Live | [`contracts/src/PolicyTreasury.sol`](../contracts/src/PolicyTreasury.sol) |
 | Budget Guard circuit | ✅ Live, circuit 1, verified 64/64 | [policies.md](policies.md) |
 | Shared policy library (bits, netlists, templates) | ✅ Built | [`packages/policy`](../packages/policy) |
-| PolicyRegistry, CreditEscrow | Built and tested, 100% line coverage; mainnet deploy pending | [contracts.md](contracts.md) |
-| Router service | Built and tested (41 unit, 10 fork integration); live run waits on Phase 2 deploy + DeepSeek key | [router.md](router.md) |
-| Settler (Merkle roots) | Planned (Phase 4) | — |
+| PolicyRegistry, CreditEscrow | ✅ Live (100% line coverage) | [contracts.md](contracts.md), [deployments.md](deployments.md) |
+| Router service | ✅ Built, tested (82 unit, 15 fork integration) and run live on mainnet with DeepSeek; receipts verified | [router.md](router.md) |
+| Settler (Merkle roots) | ✅ Built, tested (crash recovery on a fork), first batch settled on mainnet | [router.md](router.md#settlement) |
 | Other templates + policy simulation | Cheap Only circuit built (used by router tests), not yet taped out on mainnet; rest planned (Phase 5) | [policies.md](policies.md) |
 | Web app | Planned (Phase 6) | — |
 | Verify page | Planned (Phase 7) | — |
