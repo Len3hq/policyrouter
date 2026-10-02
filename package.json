@@ -9,6 +9,6 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "test:contracts": "cd contracts && forge test",
-    "test:fork": "cd contracts && forge test --fork-url ${XLAYER_RPC_URL:-https://rpc.xlayer.tech}"
+    "test:fork": "cd contracts && forge test --match-path 'test/fork/*' --fork-url ${XLAYER_RPC_URL:-https://rpc.xlayer.tech}"
   }
 }

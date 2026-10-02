@@ -13,6 +13,7 @@ remappings = [
 ]
 fs_permissions = [
   { access = "read", path = "../circuits" },
+  { access = "read", path = "../packages/policy/test" },
   { access = "read-write", path = "../deployments" },
 ]
 

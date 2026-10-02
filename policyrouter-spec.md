@@ -2,6 +2,8 @@
 
 Sep 30, 2026 · Christian Obi
 
+> **Deployed:** the PolicyRouter processor is live on X Layer mainnet at `0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99` (created by PolicyTreasury `0xad56De63a2F9F5f1170E9044046C15ee467b6288`), with Budget Guard taped out as circuit 1. See [docs/deployments.md](docs/deployments.md).
+
 ## Summary
 
 **PolicyRouter is the immutable firewall for AI agents.** Every AI request goes through a policy circuit that answers allow, deny or downgrade, and the circuit lives on X Layer as a TapeOut circuit, so nobody can change a rule once it is set, including the agent, the owner mid-task, and the router operator. Model routing is a consequence of the firewall, not the headline.

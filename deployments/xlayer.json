@@ -1,16 +1,33 @@
 {
-  "block": 72128073,
-  "budgetGuardCircuitId": 1,
   "chainId": 196,
   "deployer": "0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3",
   "factory": "0x1f09DAeFA827f02CBb40967cc91b259763760761",
-  "maxGrant": 50,
-  "name": "PolicyRouter",
-  "opsBps": 5000,
+  "treasury": "0xad56De63a2F9F5f1170E9044046C15ee467b6288",
   "processor": "0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99",
-  "symbol": "PRT",
-  "transistorPriceWei": 100000000000000,
-  "transistorSupply": 1000000,
   "transistors": "0x8B37B74083Eb87A5B725B152621c729b478262E9",
-  "treasury": "0xad56De63a2F9F5f1170E9044046C15ee467b6288"
+  "name": "PolicyRouter",
+  "symbol": "PRT",
+  "transistorSupply": 1000000,
+  "transistorPriceWei": 100000000000000,
+  "opsBps": 5000,
+  "maxGrant": 50,
+  "budgetGuardCircuitId": 1,
+  "transactions": {
+    "deployTreasuryAndCreateProcessor": {
+      "hash": "0x276284acfa83ea859e4e473b36ac511534128936f6bb4cf6405c6d62f1e6c11f",
+      "block": 72128130
+    },
+    "mintBudgetGuardTransistors": {
+      "hash": "0xc6d6693838f6680eaf9f7d409bcb5bd7861864fcc157767cb12b373cc908449a",
+      "block": 72128133
+    },
+    "tapeoutBudgetGuard": {
+      "hash": "0xf7992aa41bee95ee9fcbb74db6872059ef642c5ea7d438d6b5f01d96ee109309",
+      "block": 72128136
+    }
+  },
+  "policyRegistry": "0x0000000000000000000000000000000000000000",
+  "creditEscrow": "0x0000000000000000000000000000000000000000",
+  "router": "0x0000000000000000000000000000000000000000",
+  "escrowPayee": "0x0000000000000000000000000000000000000000"
 }

@@ -8,10 +8,16 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "vectors": "tsx scripts/merkle-vectors.ts"
   },
   "devDependencies": {
+    "@types/node": "^24.19.1",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
+  },
+  "dependencies": {
+    "@openzeppelin/merkle-tree": "^1.0.8"
   }
 }

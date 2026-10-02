@@ -30,9 +30,11 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
       - run: forge fmt --check
       - run: forge build --sizes
-      - name: Unit tests
+      - name: Unit, fuzz and invariant tests (fork tests skip themselves)
         run: forge test
+      - name: Coverage report (PolicyRegistry and CreditEscrow are at 100% lines)
+        run: forge coverage --no-match-path "test/fork/*" --no-match-coverage "(test|script)/" --report summary
       - name: Fork tests against X Layer mainnet (read-only, nothing is broadcast)
-        run: forge test --fork-url "${XLAYER_RPC_URL:-https://rpc.xlayer.tech}" -vv
+        run: forge test --match-path "test/fork/*" --fork-url "${XLAYER_RPC_URL:-https://rpc.xlayer.tech}" -vv
         env:
           XLAYER_RPC_URL: ${{ secrets.XLAYER_RPC_URL }}

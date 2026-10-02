@@ -12,6 +12,17 @@ export const TAPEOUT = {
   transistorBeacon: "0x1059AD62CaBB6A6925bb65AA617300556C60A51b",
 } as const;
 
+/** PolicyRouter's own contracts on X Layer mainnet. Mirrors deployments/xlayer.json (a test keeps them equal). */
+export const POLICYROUTER = {
+  deployer: "0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3",
+  treasury: "0xad56De63a2F9F5f1170E9044046C15ee467b6288",
+  processor: "0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99",
+  transistors: "0x8B37B74083Eb87A5B725B152621c729b478262E9",
+  circuits: {
+    "budget-guard": 1n,
+  },
+} as const;
+
 /**
  * Pin layout used by eval(): pin i is bit (i % 8) of byte (i >> 3).
  * Little-endian across bytes, least significant bit first within a byte.

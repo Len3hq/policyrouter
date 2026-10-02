@@ -122,8 +122,9 @@ contract DeployPhase1 is Script {
         vm.serializeUint(o, "transistorPriceWei", PRICE);
         vm.serializeUint(o, "opsBps", OPS_BPS);
         vm.serializeUint(o, "maxGrant", MAX_GRANT);
-        vm.serializeUint(o, "budgetGuardCircuitId", d.circuitId);
-        string memory out = vm.serializeUint(o, "block", block.number);
+        // Transaction hashes and blocks come from broadcast/DeployPhase1.s.sol/196/run-latest.json;
+        // block.number here is the simulation block, not where the transactions landed.
+        string memory out = vm.serializeUint(o, "budgetGuardCircuitId", d.circuitId);
         // DEPLOYMENT_OUT lets a local anvil rehearsal write somewhere other than the real record.
         string memory file = vm.envOr("DEPLOYMENT_OUT", string("xlayer.json"));
         vm.writeJson(out, string.concat(vm.projectRoot(), "/../deployments/", file));

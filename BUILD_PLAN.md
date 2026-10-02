@@ -75,8 +75,8 @@ The goal is to meet every pass/fail requirement before writing product code.
    - `circuits/budget-guard.json`: all 64 rows generated from the function
 3. [x] **Build the netlist** with `NetlistBuilder` in `packages/policy/src/netlist.ts`, simulated locally against all 64 rows. Budget Guard is **8 gates** (`circuits/README.md`)
 4. [x] **Treasury contract**: `contracts/src/PolicyTreasury.sol` creates the processor in its constructor and receives all mint proceeds. It sends 50% to running costs and keeps 50% in a pool that grants up to 50 free transistors per new owner for their first custom policy. It has no owner and no setters
-5. [ ] **Deploy the processor** on X Layer mainnet with supply 1,000,000 and price 0.0001 OKB. `contracts/script/DeployPhase1.s.sol` does steps 5 and 6 and writes `deployments/xlayer.json`. It was rehearsed on a mainnet fork using the real deployer and its real balance. Needs your keystore password to broadcast
-6. [ ] **Mint transistors and tape out** Budget Guard. Record its circuit ID
+5. [x] **Deploy the processor** on X Layer mainnet with supply 1,000,000 and price 0.0001 OKB, using `contracts/script/DeployPhase1.s.sol`. Processor `0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99`, treasury `0xad56De63a2F9F5f1170E9044046C15ee467b6288`, transistors `0x8B37B74083Eb87A5B725B152621c729b478262E9` (`deployments/xlayer.json`, `docs/deployments.md`)
+6. [x] **Mint transistors and tape out** Budget Guard: **circuit ID 1**, 8 transistors burned
 7. [x] **Check script** `circuits/check.ts <circuitId> <template>` calls `eval()` for all 64 inputs at a pinned block and compares each result with the JSON. It also checks the stored netlist, pin counts and gate count. It printed 64/64 against the fork rehearsal
 
 **Tests**
@@ -90,57 +90,68 @@ The goal is to meet every pass/fail requirement before writing product code.
 | ✅ Treasury | `contracts` forge, fork (12 tests incl. fuzz) | The treasury is the creator of a real processor; proceeds split exactly; `withdrawOps` pays only `ops`; grants are limited to one per address, `maxGrant`, the granter and the pool size; a grant's own mint price returns to the pool; granted transistors can tape out; plain transfers are rejected |
 | ✅ Budget Guard on fork | `contracts` forge, fork (4 tests) | Tape-out burns 8 transistors; the stored netlist equals the JSON; `eval()` matches all 64 rows |
 | ✅ Deploy rehearsal | anvil fork, real deployer address impersonated | The script broadcasts all three transactions, `eval()` matches 64/64, and 0.0006 OKB is left |
-| ⬜ On-chain match | `circuits/check.ts` against mainnet | 64 of 64 rows match. Save the output to `circuits/proof/budget-guard.txt` for the demo |
+| ✅ On-chain match | `circuits/check.ts` against mainnet | 64 of 64 rows match at block 72,128,138, saved to `circuits/proof/budget-guard.txt` |
 
-**Exit gate:** `check.ts` prints 64/64 on mainnet. Processor address, deployer address, supply, price and cap are in the README. **At this point the project qualifies.**
+**Exit gate:** `check.ts` prints 64/64 on mainnet. Processor address, deployer address, supply, price and cap are in the README. **At this point the project qualifies.** ✅ Passed
 
 ---
 
 ## Phase 2 — Smart contracts
 
+Built and tested. Reference: [docs/contracts.md](docs/contracts.md).
+
+**Design change from the original plan:** an agent has a permanent `agentId`, and the API key hash points to it. Escrow balances and spend are keyed by `agentId`, so rotating a key never strands a balance. Owner functions take `agentId`; the router's reads (`policyOf`, `killed`, `budgetOkForKey`) take the key hash.
+
 **Tasks**
 
-1. **PolicyRegistry**
-   - `registerKey(keyHash, circuitId, dailyCap)` sets the caller as owner and checks the circuit exists on the processor
-   - Owner only: `setCircuit`, `setDailyCap`, `setKill(bool)`, `transferKey` / key rotation
-   - Views: `killed(keyHash)`, `policyOf(keyHash) → (owner, circuitId, dailyCap)`
-   - Events for each change
-2. **CreditEscrow**
-   - `deposit(keyHash, amount)` in OKB (native) first. USDT comes later, as one ERC-20 path through SafeERC20
-   - `withdraw(keyHash, amount)` is owner only and limited to the unused balance
-   - `settle(batchId, merkleRoot, entries[])` is router only. Each entry is `(keyHash, cost)`. For each entry it debits the balance, adds to the day's spend, and stores the root with `block.number`
-   - Capped debit: if an entry exceeds the balance or the remaining daily cap, debit the capped amount and emit `Shortfall(keyHash, amount)`. Do not revert, so one bad key cannot block a whole batch
-   - `budgetOk(keyHash)` returns true if `spentToday < dailyCap` and `balance > 0`. The day is `block.timestamp / 1 days`, so spend resets automatically
-   - `spentToday(keyHash)`, `rootOf(batchId) → (root, blockNumber)`
-3. **Deploy script** `script/Deploy.s.sol` writes the addresses into `deployments/xlayer.json`
+1. [x] **PolicyRegistry** (`contracts/src/PolicyRegistry.sol`)
+   - `registerAgent(keyHash, circuitId, dailyCap)` sets the caller as owner. The circuit must exist on the PolicyRouter processor and have the policy shape (6 in, 3 out, no state)
+   - Owner only: `setCircuit`, `setDailyCap`, `setKill(bool)`, `rotateKey`, `transferAgent`
+   - Views: `policyOf(keyHash) → (agentId, owner, circuitId, dailyCap, killed)`, `killed(keyHash)` (true for unknown keys), `agentOf`, `agent`, `ownerOf`, `dailyCapOf`
+   - A key hash can be registered once, ever; events for every change
+2. [x] **CreditEscrow** (`contracts/src/CreditEscrow.sol`)
+   - `deposit(agentId)` in OKB, owner only, which blocks the front-run-registration attack. USDT comes later
+   - `withdraw(agentId, amount)` owner only, limited to the unused balance, works while killed
+   - `settle(batchId, root, entries[])` router only; batches numbered in order, each once; stores root and block number
+   - Capped debit with `Shortfall` events; never more than the balance, never past the daily cap
+   - `budgetOk(agentId)`, `budgetOkForKey(keyHash)`, `spentToday`, `balanceOf`, `batch`, `isInBatch(batchId, receiptHash, proof)`
+   - `claimEarnings()` pays settled fees to the fixed `payee`
+3. [x] **Deploy script** `script/DeployPhase2.s.sol` fills in `policyRegistry`, `creditEscrow`, `router` and `escrowPayee` in `deployments/xlayer.json`. Dry-run and anvil rehearsal pass (about 0.0001 OKB of gas)
+4. [ ] **Broadcast** to mainnet (needs the deployer keystore password)
+5. [ ] **Verify source on OKLink** with `scripts/verify-contracts.sh` (needs an OKLink API key). This also verifies the Phase 1 PolicyTreasury
 
-**Tests (Foundry, on a fork of X Layer mainnet)**
+**Tests**
 
-PolicyRegistry
-- [ ] `registerKey` stores owner, circuit, cap and emits `KeyRegistered`
-- [ ] `registerKey` reverts if the key is already registered
-- [ ] `registerKey` and `setCircuit` revert for a circuit ID that does not exist on the real processor
-- [ ] Non-owner calls to `setCircuit`, `setDailyCap`, `setKill` and `rotateKey` revert
-- [ ] `setKill(true)` makes `killed()` return true; `setKill(false)` reverses it
-- [ ] Key rotation moves the policy to a new hash, and the old hash reads as unregistered
+PolicyRegistry (`test/PolicyRegistry.t.sol`, 21 unit tests)
+- [x] `registerAgent` stores owner, circuit, cap and emits `AgentRegistered`; IDs are sequential
+- [x] Reverts for a used key, a zero key, an unknown circuit, an ID above uint64, and circuits with the wrong shape (4 cases); a failed registration doesn't burn the key
+- [x] Non-owner calls to every setter revert; unknown agents revert
+- [x] Kill switch toggles both ways; unknown keys read as killed
+- [x] Key rotation moves the policy, the old hash is unregistered and can never return
+- [x] Transfer moves control; zero address rejected
+- [x] `policyOf` returns all fields; empty for unknown keys
 
-CreditEscrow
-- [ ] Deposit raises the balance and emits `Deposit`
-- [ ] Owner can withdraw unused balance; a non-owner cannot; withdrawing more than the balance reverts
-- [ ] `settle` from a non-router address reverts
-- [ ] `settle` debits correctly and stores the root and block number
-- [ ] `settle` never debits more than the balance (emits `Shortfall`)
-- [ ] `settle` never pushes `spentToday` past the cap (emits `Shortfall`)
-- [ ] `budgetOk` flips to false at the cap and back to true after `vm.warp` by one day
-- [ ] Re-using a `batchId` reverts
-- [ ] Reentrancy: a malicious owner contract re-entering `withdraw` cannot drain funds
-- [ ] **Fuzz:** random deposits, settles and withdraws never leave the contract's OKB balance below the sum of key balances
-- [ ] **Invariant:** for every key, `spentToday ≤ dailyCap` and `balance ≥ 0`
+CreditEscrow (`test/CreditEscrow.t.sol`, 23 tests)
+- [x] Deposit raises the balance and emits; owner only; rejects zero; follows agent transfer
+- [x] Owner can withdraw unused balance; a non-owner cannot; over-withdraw and zero revert; works while killed
+- [x] `settle` from a non-router address reverts; batch IDs must be in order and unique
+- [x] `settle` debits correctly and stores the root and block number
+- [x] `settle` never debits more than the balance and never pushes spend past the cap (`Shortfall`); a cap lowered below the spend debits nothing
+- [x] One bad entry doesn't block the batch; killed agents still pay for work already done
+- [x] `budgetOk` flips at the cap (to the wei) and resets after `vm.warp` by one day
+- [x] Reentrancy: a malicious owner contract re-entering `withdraw` cannot drain funds
+- [x] **Fuzz** (512 runs): random deposits, settles, withdraws and day changes never leave the escrow insolvent, balances always add up, and spend never exceeds the cap
+- [x] **Invariant** (`test/CreditEscrow.invariant.t.sol`, 256,000 calls): the escrow is solvent, `totalBalances` equals the sum of balances, and a settle never raises spend above the cap
 
 Merkle compatibility
-- [ ] A root built in TypeScript with `@openzeppelin/merkle-tree` verifies in Solidity with `MerkleProof.verify` (shared test vector in `packages/policy/test/vectors.json`)
+- [x] Trees built in TypeScript with `@openzeppelin/merkle-tree` (`packages/policy/src/merkle.ts`) verify on chain through `CreditEscrow.isInBatch`: 29 proofs across trees of 1–16 leaves (`test/MerkleCompat.t.sol` + `packages/policy/test/vectors.json`); tampered leaves, tampered proofs and wrong batches fail
 
-**Exit gate:** all forge tests pass on the fork, coverage is ≥ 90% lines on both contracts, and both are deployed to mainnet and verified on OKLink.
+Fork (`test/fork/Phase2Fork.t.sol`, against the live processor)
+- [x] Registers against the live Budget Guard; rejects circuit 999 and a real 6-in/2-out circuit
+- [x] The router's decision (registry + escrow → input byte → live `eval()`) follows chain state: no deposit denies, funded allows, cap reached denies, next day allows, kill switch denies, unknown key denies
+- [x] Settle, claim and withdraw move real OKB
+
+**Exit gate:** all forge tests pass on the fork ✅. Coverage is ≥ 90% of lines on both contracts ✅ (100%). Both deployed to mainnet and verified on OKLink ⬜.
 
 ---
 
