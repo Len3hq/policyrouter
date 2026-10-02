@@ -16,7 +16,7 @@ export OPENAI_BASE_URL=https://api.policyrouter.xyz/v1
 export OPENAI_API_KEY=pr-live-...
 ```
 
-> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. Phase 2's PolicyRegistry and CreditEscrow are built and tested (100% line coverage) and waiting for their mainnet deploy. The router and web app come next; see [BUILD_PLAN.md](BUILD_PLAN.md).
+> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. Phase 2's PolicyRegistry and CreditEscrow are built and tested (100% line coverage) and waiting for their mainnet deploy. The OpenAI-compatible router (Phase 3) is built and tested end to end against a mainnet fork. The settler and web app come next; see [BUILD_PLAN.md](BUILD_PLAN.md).
 
 ## Deployed on X Layer mainnet (chain 196)
 
@@ -55,6 +55,7 @@ Or check all 64 rows: `pnpm --filter @policyrouter/circuits check 1 budget-guard
 | Doc | What it covers |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | How a request flows through the router, the processor and the contracts; what is built and what is planned |
+| [docs/router.md](docs/router.md) | The OpenAI-compatible router: request flow, endpoints, receipts, the model catalog, running it, issuing keys |
 | [docs/contracts.md](docs/contracts.md) | PolicyRegistry and CreditEscrow: every function, the rules they enforce, receipt proofs, tests |
 | [docs/policies.md](docs/policies.md) | The 6-in / 3-out policy interface, the template policies, and how to verify a circuit |
 | [docs/deployments.md](docs/deployments.md) | Every deployed address, transaction and permanent parameter, with commands to check each one |

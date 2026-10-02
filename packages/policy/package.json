@@ -18,6 +18,7 @@
     "vitest": "^3.2.0"
   },
   "dependencies": {
-    "@openzeppelin/merkle-tree": "^1.0.8"
+    "@openzeppelin/merkle-tree": "^1.0.8",
+    "viem": "^2.57.2"
   }
 }

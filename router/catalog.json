@@ -1,0 +1,97 @@
+{
+  "note": "Public model names, the tier the policy circuit sees, and where each is served. Provider prices are copied from https://api-docs.deepseek.com/quick_start/pricing (checked 2026-10-02) in USD per 1M tokens. For every request the router converts them to OKB at the live OKB/USD price (OKX index, falling back to CoinGecko and CoinPaprika) plus pricing.markupBps, and records the rate in the receipt. defaultForTier picks the model served when the circuit routes a request to a lower tier.",
+  "pricing": {
+    "currency": "USD",
+    "markupBps": 1000,
+    "markupNote": "10% over provider cost.",
+    "peak": {
+      "note": "DeepSeek peak hours: 01:00-04:00 and 06:00-10:00 UTC, Monday-Friday. Chinese public holidays are off-peak at DeepSeek but are not tracked here, so they are charged at peak (never under-charges).",
+      "weekdaysUtc": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursUtc": [
+        [
+          1,
+          4
+        ],
+        [
+          6,
+          10
+        ]
+      ]
+    }
+  },
+  "providers": {
+    "deepseek-flash": {
+      "peak": {
+        "inputCacheHit": "0.006",
+        "inputCacheMiss": "0.3",
+        "output": "1.2"
+      },
+      "offPeak": {
+        "inputCacheHit": "0.003",
+        "inputCacheMiss": "0.15",
+        "output": "0.6"
+      }
+    },
+    "deepseek-v4-pro": {
+      "peak": {
+        "inputCacheHit": "0.044",
+        "inputCacheMiss": "1.32",
+        "output": "3.96"
+      },
+      "offPeak": {
+        "inputCacheHit": "0.022",
+        "inputCacheMiss": "0.66",
+        "output": "1.98"
+      }
+    }
+  },
+  "models": [
+    {
+      "id": "cheap",
+      "tier": 0,
+      "provider": "deepseek",
+      "upstreamModel": "deepseek-flash",
+      "thinking": "disabled",
+      "defaultForTier": true
+    },
+    {
+      "id": "standard",
+      "tier": 1,
+      "provider": "deepseek",
+      "upstreamModel": "deepseek-flash",
+      "thinking": "enabled",
+      "defaultForTier": true
+    },
+    {
+      "id": "premium",
+      "tier": 2,
+      "provider": "deepseek",
+      "upstreamModel": "deepseek-v4-pro",
+      "thinking": "disabled",
+      "defaultForTier": true
+    },
+    {
+      "id": "frontier",
+      "tier": 3,
+      "provider": "deepseek",
+      "upstreamModel": "deepseek-v4-pro",
+      "thinking": "enabled",
+      "defaultForTier": true
+    }
+  ],
+  "sizeBuckets": {
+    "note": "Request size = estimated prompt tokens + max output tokens. Bucket 0 below the first bound, 3 at or above the last.",
+    "bounds": [
+      2000,
+      8000,
+      32000
+    ],
+    "defaultMaxTokens": 4096
+  }
+}

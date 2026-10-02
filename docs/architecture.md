@@ -31,9 +31,9 @@ flowchart TB
 | Budget Guard circuit | ✅ Live, circuit 1, verified 64/64 | [policies.md](policies.md) |
 | Shared policy library (bits, netlists, templates) | ✅ Built | [`packages/policy`](../packages/policy) |
 | PolicyRegistry, CreditEscrow | Built and tested, 100% line coverage; mainnet deploy pending | [contracts.md](contracts.md) |
-| Router service | Planned (Phase 3) | — |
+| Router service | Built and tested (41 unit, 10 fork integration); live run waits on Phase 2 deploy + DeepSeek key | [router.md](router.md) |
 | Settler (Merkle roots) | Planned (Phase 4) | — |
-| Other templates + policy simulation | Planned (Phase 5) | — |
+| Other templates + policy simulation | Cheap Only circuit built (used by router tests), not yet taped out on mainnet; rest planned (Phase 5) | [policies.md](policies.md) |
 | Web app | Planned (Phase 6) | — |
 | Verify page | Planned (Phase 7) | — |
 

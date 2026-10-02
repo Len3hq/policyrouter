@@ -4,6 +4,7 @@ import {
   TEMPLATES,
   budgetGuard,
   buildArtifact,
+  cheapOnly,
   decodeOutput,
   inputPins,
   simulate,
@@ -63,5 +64,27 @@ describe("template lookup", () => {
   it("finds templates by id and rejects unknown ids", () => {
     expect(templateById("budget-guard")).toBe(budgetGuard);
     expect(() => templateById("nope")).toThrow(/unknown template/);
+  });
+});
+
+describe("Cheap Only rule", () => {
+  it("never routes above tier 1 and never allows when killed or over budget", () => {
+    for (const input of ALL_INPUTS) {
+      const out = cheapOnly.evaluate(input);
+      expect(out.routeTier).toBeLessThanOrEqual(1);
+      if (input.kill || !input.budgetOk) expect(out).toEqual({ allow: false, routeTier: 0 });
+    }
+  });
+
+  it("downgrades premium and frontier to standard, and leaves cheap and standard alone", () => {
+    const open = { size: 0, budgetOk: true, kill: false } as const;
+    expect(cheapOnly.evaluate({ ...open, tier: 0 })).toEqual({ allow: true, routeTier: 0 });
+    expect(cheapOnly.evaluate({ ...open, tier: 1 })).toEqual({ allow: true, routeTier: 1 });
+    expect(cheapOnly.evaluate({ ...open, tier: 2 })).toEqual({ allow: true, routeTier: 1 });
+    expect(cheapOnly.evaluate({ ...open, tier: 3 })).toEqual({ allow: true, routeTier: 1 });
+  });
+
+  it("uses 10 gates", () => {
+    expect(cheapOnly.circuit().gates).toHaveLength(10);
   });
 });

@@ -1,0 +1,28 @@
+{
+  "name": "@policyrouter/router",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "key:create": "tsx src/cli/key-create.ts",
+    "test": "vitest run test/unit",
+    "test:integration": "cd ../contracts && forge build && cd ../router && vitest run test/integration",
+    "typecheck": "tsc --noEmit",
+    "verify-receipt": "tsx src/cli/verify-receipt.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "@policyrouter/policy": "workspace:*",
+    "hono": "^4.9.0",
+    "openai": "^5.20.0",
+    "viem": "^2.37.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -4,3 +4,4 @@ export * from "./netlist.ts";
 export * from "./templates.ts";
 export * from "./artifact.ts";
 export * from "./merkle.ts";
+export * from "./receipt.ts";

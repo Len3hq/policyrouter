@@ -46,7 +46,7 @@ In TypeScript, use `encodeInput` and `decodeOutput` from `@policyrouter/policy`.
 | Policy | Rule | Status |
 | --- | --- | --- |
 | **Budget Guard** | Allow only if the kill switch is off and today's spend is under the cap. The requested tier is served unchanged | **Live: circuit 1, 8 gates** |
-| Cheap Only | Budget Guard, and any tier above 1 is downgraded to 1 | Planned (Phase 5) |
+| Cheap Only | Budget Guard, and any tier above 1 is downgraded to 1 | Circuit built and tested (10 gates, `circuits/cheap-only.json`); used by the router tests on a fork; mainnet tape-out in Phase 5 |
 | Small Requests | Budget Guard, and huge requests (`size = 3`) are denied | Planned (Phase 5) |
 | Strict | Cheap Only and Small Requests combined | Planned (Phase 5) |
 

@@ -157,60 +157,66 @@ Fork (`test/fork/Phase2Fork.t.sol`, against the live processor)
 
 ## Phase 3 — Router core
 
+Built and tested. Reference: [docs/router.md](docs/router.md).
+
 The goal is one real request going agent → router → `eval()` → DeepSeek → agent, with a signed receipt.
 
 **Tasks**
 
-1. **Database (SQLite + Drizzle):** tables for `keys`, `usage`, `receipts`, `batches`
-2. **Key issuing:** a CLI command, `pnpm router key:create`, generates `pr-live-…`, stores only its hash, and prints the hash to register on chain. The web app takes this over in Phase 6
-3. **Model catalog** `router/src/catalog.ts`: four models mapped to tiers 0–3, provider, price per million input and output tokens
-4. **Chain reader:** reads `killed`, `budgetOk` and `policyOf` at a pinned block through viem multicall, with a cache of a few seconds keyed by block
-5. **Policy checker:** builds the input with `encodeInput` from `packages/policy`, calls `eval` with `eth_call` at the pinned block, and decodes the output
-6. **Size bucket:** count prompt tokens with a tokenizer and add `max_tokens`. Bucket thresholds go in the catalog config
-7. **Gateway** (Hono)
-   - `POST /v1/chat/completions` (streaming and non-streaming), `GET /v1/models`
-   - Auth by `Authorization: Bearer pr-live-…`, looked up by hash
-   - Errors use the OpenAI error shape. A deny returns 403 `policy_denied` with the receipt
-8. **DeepSeek adapter:** OpenAI SDK with DeepSeek's base URL; streams responses back
-9. **Metering:** read `usage` from the provider response, or from the last stream chunk with `stream_options.include_usage`, and compute the cost at the served tier
-10. **Receipt signer:** EIP-712 typed data signed by the router key. Returned in the `x-policyrouter-receipt` header and in a `policyrouter_receipt` body field (sent as the final SSE event when streaming)
-11. **Rate limit** per key, for example a token bucket in memory
+1. [x] **Database:** SQLite through Node's built-in `node:sqlite`, with no native module and no ORM (`router/src/db.ts`). Tables `keys`, `receipts` (one row per request, which also carries the usage), and `batches`
+2. [x] **Key issuing:** `pnpm --filter @policyrouter/router key:create` prints the key once, stores only its hash, and prints the `cast send` commands to register and fund it
+3. [x] **Model catalog** `router/catalog.json` + `src/catalog.ts`: `cheap`/`standard`/`premium`/`frontier` for tiers 0–3 = `deepseek-flash` thinking off/on, `deepseek-v4-pro` thinking off/on. DeepSeek's published USD prices (peak and off-peak; cache hit, cache miss, output) are converted to OKB per request at the **live OKB/USD price** (`src/price.ts`: OKX → CoinGecko → CoinPaprika, refreshed every minute, 503 when stale) plus a 10% markup. The rate is recorded in each receipt (`okbUsdE8`). The tier's thinking mode is forced upstream
+4. [x] **Chain reader** (`src/chain.ts`): `policyOf` and `budgetOkForKey` at a pinned block, run in parallel; state is cached per block and the block number for `BLOCK_CACHE_MS`. Multicall wasn't needed: the reads are pinned to the same block number
+5. [x] **Policy checker** (`src/policy.ts`): `encodeInput` → `eval` at the pinned block → `decodeOutput`; any failure raises `PolicyUnavailable`
+6. [x] **Size bucket:** about 4 characters per token plus `max_tokens` (default 4,096), with bounds at 2k/8k/32k. A heuristic, not a tokenizer; the buckets are coarse enough
+7. [x] **Gateway** (Hono, `src/app.ts`): `POST /v1/chat/completions` (streaming and not), `GET /v1/models`, `GET /v1/receipts/:id`, `GET /health`; OpenAI error shapes; 403 `policy_denied` with receipt
+8. [x] **DeepSeek adapter:** generic OpenAI-compatible adapter (`src/providers/openai-compatible.ts`), streaming with `include_usage`
+9. [x] **Metering:** provider-reported usage (cache hit / miss / output), or an estimate if it is missing, priced at the **served** model for the request's time (peak or off-peak), rounded up to the wei. Receipts carry `cachedPromptTokens`, so the cost can be recomputed
+10. [x] **Receipt signer:** EIP-712 (types in `packages/policy/src/receipt.ts`, shared with the Verify page), in the `x-policyrouter-receipt` header, the `policyrouter_receipt` body field, and the last SSE chunk when streaming
+11. [x] **Rate limit:** in-memory token bucket per key hash
+12. [x] **Extra:** `verify-receipt` CLI, which checks the signature and re-runs `eval()` at the receipt's block, and prints the `cast call`
+13. [x] **Extra:** Cheap Only template (10 gates) added to `packages/policy` and `circuits/`, for the downgrade tests. Its mainnet tape-out stays in Phase 5
 
 **Must-haves (each one has a test below)**
 
-- Fail closed: if `eval()` or a chain read fails, refuse the request
-- Every receipt records the block that was read
-- Provider keys never appear in a response or a log
+- [x] Fail closed: if `eval()` or a chain read fails, refuse the request
+- [x] Every receipt records the block that was read
+- [x] Provider keys never appear in a response or a log
 
 **Tests**
 
-Unit (Vitest)
+Unit (Vitest, 61 tests, `router/test/unit`)
 
 | Area | Cases |
 | --- | --- |
-| Catalog | Every model has a tier from 0 to 3 and a price; unknown model returns 404 `model_not_found` |
-| Size bucket | Boundary values at each threshold land in the correct bucket |
-| Checker | With a mocked `eval`, allow, deny and downgrade decode correctly; an `eval` that throws or times out causes a deny (fail closed) |
-| Metering | Cost for known token counts matches a hand-worked value; downgraded requests are charged at the served tier |
-| Receipt | Signature recovers to the router address; changing any field breaks it; JSON schema matches the spec |
-| Auth | Missing, malformed, or unknown key returns 401; the key itself is never logged |
-| Rate limit | Request N+1 in the window returns 429 |
+| ✅ Catalog | Every model has a tier from 0 to 3 and a price; one default per tier; broken catalogs rejected; unknown model returns 404 `model_not_found` |
+| ✅ Size bucket | Boundary values at each threshold land in the correct bucket; `max_tokens` / `max_completion_tokens` / default |
+| ✅ Checker | With a fake `eval`, allow, deny and downgrade decode correctly; an `eval` that throws, a read that throws, or empty output all fail closed; unknown keys never reach `eval` |
+| ✅ Metering | Cost for known token counts matches a hand-worked value; rounds up; downgraded requests are charged at the served tier |
+| ✅ Receipt | Signature recovers to the router address; changing any of the 14 fields breaks it; it is bound to chain and escrow; JSON matches the spec format (in `packages/policy`) |
+| ✅ Auth | Missing, malformed or unknown key returns 401; the key is never logged |
+| ✅ Rate limit | Request N+1 in the window returns 429; refills over time |
+| ✅ Upstream | 502 never contains the provider's message or key |
 
-Integration (Vitest, with the contracts deployed to a local `anvil --fork-url` and a mock provider server)
+Integration (Vitest, 10 tests, `router/test/integration`): Phase 2 deployed on a local `anvil --fork-url`, Cheap Only taped out on the live processor, and a mock provider server
 
-- [ ] Allowed request: forwarded at the requested tier, receipt returned, usage row written
-- [ ] Downgrade: under Cheap Only (deployed on the fork for testing), a tier-3 request is served by the tier-1 model, and the receipt shows `modelRequested ≠ modelServed`
-- [ ] Kill switch: `setKill(true)` on chain makes the next request return 403 with no call to the provider
-- [ ] Cap reached: the next request after the cap returns 403
-- [ ] RPC down: stop anvil, and the request returns 503 with no provider call
-- [ ] Streaming: chunks arrive in order, usage is metered, and the receipt arrives as the last event
-- [ ] Receipt replay: re-running `eval()` at `receipt.blockNumber` with `receipt.inputBits` gives `receipt.outputBits`
+- [x] Allowed request: forwarded at the requested tier, receipt returned, usage row written
+- [x] Downgrade: under Cheap Only, a tier-3 request is served by the tier-1 model, and the receipt shows `modelRequested ≠ modelServed`
+- [x] Kill switch: `setKill(true)` on chain makes the next request return 403 with no call to the provider
+- [x] Cap reached: the next request after the cap returns 403
+- [x] Unfunded agent denied; unknown key 401 after the on-chain lookup
+- [x] RPC down: the router is pointed at a dead RPC, and the request returns 503 with no provider call
+- [x] Streaming: chunks arrive in order, usage is metered, and the receipt arrives as the last event
+- [x] Receipt replay: re-running `eval()` at `receipt.blockNumber` with `receipt.inputBits` gives `receipt.outputBits`; the signature is the router's
+- [x] No API key or provider key in the logs
+
+Process-level rehearsal (manual, fork): the real server process, `key:create`, `cast` register and deposit, `curl`, and `verify-receipt` give signature OK and policy OK on the live Budget Guard circuit.
 
 Live smoke test (manual, mainnet + real DeepSeek)
 
-- [ ] `curl` one request with a real key and Budget Guard, then confirm the receipt with `circuits/check.ts`-style replay
+- [ ] Needs the Phase 2 broadcast, `DEEPSEEK_API_KEY`, and `ROUTER_PRIVATE_KEY` in `.env`. Then: `key:create` → register and fund → `curl` → `verify-receipt <requestId>`
 
-**Exit gate:** all unit and integration tests pass, and one live request is served on mainnet with a receipt that verifies.
+**Exit gate:** all unit and integration tests pass ✅. One live request is served on mainnet with a receipt that verifies ⬜ (blocked on the Phase 2 deploy).
 
 ---
 
