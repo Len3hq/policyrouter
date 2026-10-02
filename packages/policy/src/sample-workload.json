@@ -1,0 +1,25 @@
+{
+  "note": "Sample workload for policy simulation when an agent has no history: 20 requests, a coding agent's typical mix. Tiers 0 cheap, 1 standard, 2 premium, 3 frontier; size buckets 0 small, 1 medium, 2 large, 3 huge.",
+  "requests": [
+    { "tier": 0, "size": 0, "promptTokens": 400, "completionTokens": 150 },
+    { "tier": 0, "size": 0, "promptTokens": 650, "completionTokens": 200 },
+    { "tier": 0, "size": 1, "promptTokens": 2200, "completionTokens": 400 },
+    { "tier": 0, "size": 0, "promptTokens": 300, "completionTokens": 120 },
+    { "tier": 0, "size": 1, "promptTokens": 3100, "completionTokens": 600 },
+    { "tier": 0, "size": 0, "promptTokens": 500, "completionTokens": 250 },
+    { "tier": 1, "size": 1, "promptTokens": 2500, "completionTokens": 1200 },
+    { "tier": 1, "size": 0, "promptTokens": 800, "completionTokens": 900 },
+    { "tier": 1, "size": 1, "promptTokens": 4000, "completionTokens": 1500 },
+    { "tier": 1, "size": 2, "promptTokens": 9000, "completionTokens": 2500 },
+    { "tier": 1, "size": 1, "promptTokens": 3500, "completionTokens": 1100 },
+    { "tier": 1, "size": 0, "promptTokens": 600, "completionTokens": 700 },
+    { "tier": 2, "size": 1, "promptTokens": 4500, "completionTokens": 2000 },
+    { "tier": 2, "size": 2, "promptTokens": 12000, "completionTokens": 3000 },
+    { "tier": 2, "size": 1, "promptTokens": 3000, "completionTokens": 1800 },
+    { "tier": 2, "size": 3, "promptTokens": 40000, "completionTokens": 6000 },
+    { "tier": 3, "size": 1, "promptTokens": 5000, "completionTokens": 4000 },
+    { "tier": 3, "size": 2, "promptTokens": 15000, "completionTokens": 6000 },
+    { "tier": 3, "size": 3, "promptTokens": 60000, "completionTokens": 10000 },
+    { "tier": 3, "size": 1, "promptTokens": 4200, "completionTokens": 3500 }
+  ]
+}

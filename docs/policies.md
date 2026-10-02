@@ -46,9 +46,9 @@ In TypeScript, use `encodeInput` and `decodeOutput` from `@policyrouter/policy`.
 | Policy | Rule | Status |
 | --- | --- | --- |
 | **Budget Guard** | Allow only if the kill switch is off and today's spend is under the cap. The requested tier is served unchanged | **Live: circuit 1, 8 gates** |
-| Cheap Only | Budget Guard, and any tier above 1 is downgraded to 1 | Circuit built and tested (10 gates, `circuits/cheap-only.json`); used by the router tests on a fork; mainnet tape-out in Phase 5 |
-| Small Requests | Budget Guard, and huge requests (`size = 3`) are denied | Planned (Phase 5) |
-| Strict | Cheap Only and Small Requests combined | Planned (Phase 5) |
+| Cheap Only | Budget Guard, and any tier above 1 is downgraded to 1 | Built and tested, 10 gates. Mainnet tape-out ready (rehearsed: circuit 2) |
+| Small Requests | Budget Guard, and huge requests (`size = 3`) are denied | Built and tested, 11 gates. Mainnet tape-out ready (rehearsed: circuit 3) |
+| Strict | Cheap Only and Small Requests combined | Built and tested, 13 gates. Mainnet tape-out ready (rehearsed: circuit 4) |
 
 Owners will also be able to build a custom policy and tape it out on our processor, burning one transistor per gate (Phase 8).
 
@@ -61,6 +61,29 @@ Owners will also be able to build a custom policy and tape it out on our process
 | 0 | 1 | allow, route tier = requested tier (16 of 64) |
 
 The gate-by-gate wiring is in [circuits/README.md](../circuits/README.md). All 64 rows are in [circuits/budget-guard.json](../circuits/budget-guard.json), and the mainnet run is in [circuits/proof/budget-guard.txt](../circuits/proof/budget-guard.txt).
+
+## Policy simulation
+
+Before an owner switches to a policy, they can see what it would have done to their own recent traffic: [`packages/policy/src/simulate.ts`](../packages/policy/src/simulate.ts), served by the router at `GET /v1/simulate` (see [router.md](router.md#endpoints)).
+
+1. Take the agent's last 100 receipts (up to 500 with `?limit=`). Each receipt's `inputBits` holds the tier, size bucket, `budget_ok` and `kill` exactly as the circuit saw them. An agent with no history gets a fixed 20-request sample workload.
+2. Replay each request through the template's rule and count it as **allowed** (requested tier), **downgraded** (lower tier) or **denied**.
+3. Price **without** a policy (every request at its requested tier) and **with** it (denied requests cost 0; the rest at the tier the rule picks), using the router's catalog, each receipt's own time (peak or off-peak) and OKB rate. Then report `savingsPct`.
+
+Example response, an agent's own history under Cheap Only:
+
+```json
+{ "source": "history", "requests": 2,
+  "results": [{ "template": "cheap-only", "circuitId": "2", "allowed": 1, "downgraded": 1, "denied": 0,
+                "spendWithout": "<wei>", "spendWith": "<wei>", "savingsPct": <percent> }] }
+```
+
+`circuitId` is the template's circuit on the mainnet processor, or `null` until it is taped out.
+
+**The decisions are exact; the spend is an estimate.** Tests replay real router traffic, both with fake circuits and with the live circuits on a fork, and the allowed, downgraded and denied counts match the router's actual decisions every time. Spend is approximate in three stated ways:
+- token counts are kept the same when a request is re-priced at another tier;
+- a request that was denied when it happened is priced with typical usage for its size bucket;
+- `budget_ok` is taken as it was, though a cheaper policy might have kept it true for longer.
 
 ## How a policy goes from idea to chain
 

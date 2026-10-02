@@ -257,7 +257,7 @@ export class Store {
   /** Recent receipts for one key, newest first (used by policy simulation in Phase 5). */
   recentForKey(keyHash: Hex, limit: number): SignedReceipt[] {
     const rows = this.db
-      .prepare("SELECT receipt_json FROM receipts WHERE key_hash = ? ORDER BY created_at DESC LIMIT ?")
+      .prepare("SELECT receipt_json FROM receipts WHERE key_hash = ? ORDER BY created_at DESC, rowid DESC LIMIT ?")
       .all(keyHash, limit) as { receipt_json: string }[];
     return rows.map((r) => receiptFromJson(JSON.parse(r.receipt_json) as ReceiptJson));
   }

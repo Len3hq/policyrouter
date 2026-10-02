@@ -5,3 +5,4 @@ export * from "./templates.ts";
 export * from "./artifact.ts";
 export * from "./merkle.ts";
 export * from "./receipt.ts";
+export * from "./simulate.ts";

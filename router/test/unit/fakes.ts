@@ -1,6 +1,6 @@
 // Test doubles for the router's dependencies.
 
-import { budgetGuard, cheapOnly, decodeOutput, indexToInput, outputToIndex, receiptDomain } from "@policyrouter/policy";
+import { budgetGuard, cheapOnly, decodeOutput, indexToInput, outputToIndex, receiptDomain, smallRequests, strict } from "@policyrouter/policy";
 import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createApp } from "../../src/app.ts";
@@ -20,7 +20,7 @@ export const ESCROW = "0x00000000000000000000000000000000000e5c20" as const;
 export const PROCESSOR = "0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99" as const;
 export const PROVIDER_SECRET = "sk-provider-secret-do-not-leak-123456";
 
-const TEMPLATE_BY_CIRCUIT = { 1: budgetGuard, 2: cheapOnly } as const;
+export const TEMPLATE_BY_CIRCUIT = { 1: budgetGuard, 2: cheapOnly, 3: smallRequests, 4: strict } as const;
 
 export class FakeChain implements ChainReader {
   readonly processor = PROCESSOR;
@@ -39,7 +39,7 @@ export class FakeChain implements ChainReader {
   evaluate = async (circuitId: bigint, input: Uint8Array): Promise<Uint8Array> => {
     this.evalCalls++;
     if (this.failEval) throw new Error("eval reverted");
-    const t = TEMPLATE_BY_CIRCUIT[Number(circuitId) as 1 | 2];
+    const t = TEMPLATE_BY_CIRCUIT[Number(circuitId) as 1 | 2 | 3 | 4];
     if (!t) throw new Error("no circuit");
     return Uint8Array.of(outputToIndex(t.evaluate(indexToInput(input[0]!))));
   };

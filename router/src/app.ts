@@ -6,10 +6,21 @@
 // receipt → return it with the response. Any failure of the policy check refuses the request.
 
 import { Hono, type Context } from "hono";
-import { receiptToJson, type Receipt, type Tier } from "@policyrouter/policy";
+import {
+  POLICYROUTER,
+  SAMPLE_WORKLOAD,
+  TEMPLATES,
+  receiptToJson,
+  simRequestFromReceipt,
+  simulatePolicy,
+  type Receipt,
+  type SimRequest,
+  type Tier,
+} from "@policyrouter/policy";
 import type { Hex } from "viem";
 import {
   costWei,
+  defaultForTier,
   estimateTokens,
   findModel,
   servedModel,
@@ -90,6 +101,54 @@ export function createApp(deps: AppDeps): Hono {
             blockNumber: batch.blockNumber?.toString() ?? null,
           }
         : null,
+    });
+  });
+
+  // What each template policy would have done to this key's recent requests (or a sample workload
+  // if it has none). Only the caller's own history is used: the key selects it.
+  app.get("/v1/simulate", (c) => {
+    const key = keyFromAuthHeader(c.req.header("authorization"));
+    if (!key) return fail(c, 401, ERR.missingKey());
+    if (!isWellFormedKey(key)) return fail(c, 401, ERR.badKey());
+    const keyHash = hashKey(key);
+    if (!limiter.take(keyHash)) return fail(c, 429, ERR.rateLimited());
+
+    const only = c.req.query("template");
+    const templates = only ? TEMPLATES.filter((t) => t.id === only) : TEMPLATES;
+    if (templates.length === 0) {
+      return fail(c, 400, ERR.badRequest(`Unknown template '${only}'. Known: ${TEMPLATES.map((t) => t.id).join(", ")}.`));
+    }
+    const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 100) || 100, 1), 500);
+
+    const history = store.recentForKey(keyHash, limit).map(simRequestFromReceipt);
+    const source = history.length > 0 ? "history" : "sample";
+    const requests: readonly SimRequest[] = history.length > 0 ? history : SAMPLE_WORKLOAD;
+
+    const now = price.current();
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    const priceAt = (tier: Tier, r: SimRequest) => {
+      const okb = r.okbUsdE8 ?? now?.okbUsdE8;
+      if (!okb) throw new Error("no OKB price");
+      return costWei(catalog, defaultForTier(catalog, tier), r, r.timestamp ?? nowSeconds, okb);
+    };
+    if (!now && requests.some((r) => !r.okbUsdE8)) return fail(c, 503, ERR.priceUnavailable());
+
+    const circuits = POLICYROUTER.circuits as Readonly<Record<string, bigint>>;
+    return c.json({
+      source,
+      requests: requests.length,
+      results: templates.map((t) => {
+        const r = simulatePolicy(t, requests, priceAt);
+        return {
+          template: t.id,
+          name: t.name,
+          rule: t.rule,
+          circuitId: circuits[t.id]?.toString() ?? null,
+          ...r,
+          spendWithout: r.spendWithout.toString(),
+          spendWith: r.spendWith.toString(),
+        };
+      }),
     });
   });
 

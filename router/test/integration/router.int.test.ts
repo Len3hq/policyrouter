@@ -6,6 +6,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseEther, type Hex } from "viem";
 import {
   POLICYROUTER,
+  budgetGuard,
+  cheapOnly,
+  simRequestFromReceipt,
+  simulatePolicy,
   receiptFromJson,
   receiptHash,
   recoverReceiptSigner,
@@ -172,6 +176,30 @@ describe.skipIf(!hasAnvil)("router on a mainnet fork", { timeout: 60_000 }, () =
     expect(parseInt(out.slice(2, 4), 16)).toBe(receipt.outputBits);
     expect(await recoverReceiptSigner(receipt, router.domain)).toBe(w.routerAccount.address);
     expect(router.store.getReceipt(receipt.requestId)?.hash).toBe(receiptHash(receipt, router.domain));
+  });
+
+  it("simulation replays this suite's real traffic and reaches the same decisions as the live circuits", async () => {
+    const rows = router.store.db
+      .prepare("SELECT key_hash, circuit_id FROM receipts GROUP BY key_hash, circuit_id")
+      .all() as { key_hash: `0x${string}`; circuit_id: string }[];
+    const templateFor = (id: bigint) => (id === BUDGET_GUARD ? budgetGuard : id === w.cheapOnlyId ? cheapOnly : undefined);
+    let compared = 0;
+    for (const { key_hash, circuit_id } of rows) {
+      const template = templateFor(BigInt(circuit_id))!;
+      const receipts = router.store.recentForKey(key_hash, 1000).filter((r) => r.circuitId === BigInt(circuit_id));
+      const actual = { allowed: 0, downgraded: 0, denied: 0 };
+      for (const r of receipts) {
+        if ((r.outputBits & 1) === 0) actual.denied++;
+        else if (r.outputBits >> 1 < (r.inputBits & 3)) actual.downgraded++;
+        else actual.allowed++;
+      }
+      const sim = simulatePolicy(template, receipts.map(simRequestFromReceipt), () => 1n);
+      expect({ allowed: sim.allowed, downgraded: sim.downgraded, denied: sim.denied }).toEqual(actual);
+      compared += receipts.length;
+    }
+    const total = (router.store.db.prepare("SELECT COUNT(*) AS n FROM receipts").get() as { n: number }).n;
+    expect(total).toBeGreaterThan(0);
+    expect(compared).toBe(total); // every receipt this suite produced was replayed
   });
 
   it("never logs API keys or the provider key", async () => {

@@ -16,6 +16,9 @@
   "opsBps": 5000,
   "maxGrant": 50,
   "budgetGuardCircuitId": 1,
+  "cheapOnlyCircuitId": 0,
+  "smallRequestsCircuitId": 0,
+  "strictCircuitId": 0,
   "transactions": {
     "deployTreasuryAndCreateProcessor": {
       "hash": "0x276284acfa83ea859e4e473b36ac511534128936f6bb4cf6405c6d62f1e6c11f",

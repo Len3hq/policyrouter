@@ -6,6 +6,8 @@ import {
   buildArtifact,
   cheapOnly,
   decodeOutput,
+  smallRequests,
+  strict,
   inputPins,
   simulate,
   templateById,
@@ -86,5 +88,51 @@ describe("Cheap Only rule", () => {
 
   it("uses 10 gates", () => {
     expect(cheapOnly.circuit().gates).toHaveLength(10);
+  });
+});
+
+describe("Small Requests rule", () => {
+  it("denies every huge request and otherwise behaves like Budget Guard", () => {
+    for (const input of ALL_INPUTS) {
+      if (input.size === 3) expect(smallRequests.evaluate(input)).toEqual({ allow: false, routeTier: 0 });
+      else expect(smallRequests.evaluate(input)).toEqual(budgetGuard.evaluate(input));
+    }
+  });
+
+  it("uses 11 gates", () => {
+    expect(smallRequests.circuit().gates).toHaveLength(11);
+  });
+});
+
+describe("Strict rule", () => {
+  it("equals Cheap Only plus Small Requests, row by row", () => {
+    for (const input of ALL_INPUTS) {
+      const both = smallRequests.evaluate(input).allow && cheapOnly.evaluate(input).allow;
+      expect(strict.evaluate(input)).toEqual(both ? cheapOnly.evaluate(input) : { allow: false, routeTier: 0 });
+    }
+  });
+
+  it("uses 13 gates", () => {
+    expect(strict.circuit().gates).toHaveLength(13);
+  });
+});
+
+// Exhaustive over all 64 inputs (stronger than random property tests: the input space is that small).
+describe.each(TEMPLATES.map((t) => [t.id, t] as const))("%s safety properties", (_id, t) => {
+  it("never allows when the kill switch is on or the budget is spent", () => {
+    for (const input of ALL_INPUTS.filter((i) => i.kill || !i.budgetOk)) {
+      expect(t.evaluate(input)).toEqual({ allow: false, routeTier: 0 });
+    }
+  });
+
+  it("never routes above the requested tier", () => {
+    for (const input of ALL_INPUTS) expect(t.evaluate(input).routeTier).toBeLessThanOrEqual(input.tier);
+  });
+
+  it("always reports route tier 0 when denying", () => {
+    for (const input of ALL_INPUTS) {
+      const out = t.evaluate(input);
+      if (!out.allow) expect(out.routeTier).toBe(0);
+    }
   });
 });

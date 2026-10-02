@@ -257,29 +257,34 @@ Built, tested, and run on mainnet. Reference: [docs/router.md#settlement](docs/r
 
 ## Phase 5 — Remaining templates and policy simulation
 
+Built and tested. The mainnet tape-out is ready and waits on a deployer top-up.
+
 **Tasks**
 
-1. Add `cheapOnly`, `smallRequests` and `strict` to `packages/policy`, with golden JSON truth tables
-2. Wire, simulate, tape out each one, and run `check.ts` (64/64 each). Record the gate counts
-3. **Simulation** `packages/policy/src/simulate.ts`
-   - `simulate(template, requests[], catalog) → { allowed, downgraded, denied, spendWithout, spendWith, savingsPct }`
-   - The inputs are the last 100 rows from `usage` (requested model, size bucket, flags at the time). Prices come from the catalog
-   - When there is no history, use a fixed sample workload in `packages/policy/src/sample-workload.json`
-4. Router endpoint `GET /v1/simulate?template=…` for the web app, scoped to the caller's key
+1. [x] Add `cheapOnly`, `smallRequests` and `strict` to `packages/policy`, with golden JSON truth tables (`circuits/*.json`)
+2. [x] Wire and simulate each one: Cheap Only **10 gates**, Small Requests **11**, Strict **13** (`circuits/README.md`)
+3. [ ] **Tape out on mainnet** with `contracts/script/DeployPhase5.s.sol`. It mints all 34 transistors in one call (one protocol fee), tapes out the three, checks each against all 64 rows, and records the ids in `deployments/xlayer.json`. **Needs about 0.008 OKB; send 0.01 OKB to the deployer first.** Rehearsed on a fork as the real deployer: circuits 2, 3 and 4, and `check.ts` 64/64 for each
+4. [ ] `check.ts` on mainnet for each, saving `circuits/proof/{cheap-only,small-requests,strict}.txt`
+5. [x] **Simulation** `packages/policy/src/simulate.ts`
+   - `simulatePolicy(template, requests[], price) → { requests, allowed, downgraded, denied, spendWithout, spendWith, savingsPct }`. The price function is passed in, so the policy package stays independent of the router's catalog
+   - The inputs are the key's recent receipts (`simRequestFromReceipt`: tier, size and flags from `inputBits`, plus actual tokens; typical usage per size bucket for denials)
+   - With no history: `packages/policy/src/sample-workload.json` (20 requests across every tier and size)
+6. [x] Router endpoint `GET /v1/simulate?template=…&limit=…`, authenticated and scoped to the caller's key. Spend uses the router's catalog with each receipt's own time and OKB rate
 
 **Tests**
 
 | Test | Asserts |
 | --- | --- |
-| Template tables | Each template's 64 rows match its plain-English rule. Example: Cheap Only never outputs `route_tier > 1`; Small Requests denies every row with `size = 3`; Strict equals Cheap Only plus Small Requests row by row |
-| Property tests (fast-check) | No template ever allows when `kill = 1` or `budget_ok = 0`; no template ever routes above the requested tier |
-| On-chain match | `check.ts` gives 64/64 for each of the three new circuits |
-| Simulation counts | allowed + downgraded + denied = number of requests |
-| Simulation money | A hand-built set of 10 requests gives exact expected spends; denied requests cost 0; `savingsPct` is 0 under a policy that allows everything at the requested tier |
-| Simulation vs router | Replay the integration-test traffic from Phase 3 through `simulate`. Its allow, downgrade and deny counts equal the router's actual counts |
-| Endpoint | A key can only simulate its own history |
+| ✅ Template tables | Each template's 64 rows match its plain-English rule. Cheap Only never outputs `route_tier > 1`; Small Requests denies every row with `size = 3` and otherwise equals Budget Guard; Strict equals Cheap Only plus Small Requests row by row |
+| ✅ Safety properties (exhaustive over all 64 inputs, stronger than random sampling at this size) | No template ever allows when `kill = 1` or `budget_ok = 0`; no template routes above the requested tier; denials always report tier 0 |
+| ✅ Fork tape-out (`TemplatesFork.t.sol`) | All three tape out on the live processor, burn exactly their gates, store the netlist verbatim, and match all 64 rows |
+| ⬜ On-chain match | `check.ts` gives 64/64 for each of the three new circuits on mainnet (64/64 in the fork rehearsal) |
+| ✅ Simulation counts | allowed + downgraded + denied = number of requests, for every template and workload |
+| ✅ Simulation money | A hand-built set of 10 requests gives exact expected spends under all four templates (Cheap Only: 15,000 of 26,000 wei, 42.3% saved); denied requests cost 0; `savingsPct` is 0 under a policy that allows everything at the requested tier; empty history gives zeros |
+| ✅ Simulation vs router | Unit: traffic across all four circuits (every tier, small and huge, killed and over-budget agents) gives simulated counts equal to the router's actual decisions. Integration: every receipt the Phase 3 fork suite produced, replayed, matches the live circuits' decisions |
+| ✅ Endpoint | A key can only simulate its own history (another key gets the sample); needs a key; unknown template is 400; `limit` caps the window |
 
-**Exit gate:** four templates are live on mainnet with proofs, and simulation output matches real router decisions.
+**Exit gate:** four templates live on mainnet with proofs ⬜ (needs the top-up and broadcast). Simulation output matches real router decisions ✅.
 
 ---
 

@@ -16,7 +16,7 @@ export OPENAI_BASE_URL=https://api.policyrouter.xyz/v1
 export OPENAI_API_KEY=pr-live-...
 ```
 
-> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. PolicyRegistry and CreditEscrow (Phase 2) are live too. The OpenAI-compatible router (Phase 3) has served live requests on mainnet through DeepSeek, with signed receipts that verify on chain. The settler (Phase 4) has posted the first batch on chain: every receipt in it proves its inclusion through `CreditEscrow.isInBatch`. The remaining templates and the web app come next; see [BUILD_PLAN.md](BUILD_PLAN.md).
+> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. PolicyRegistry and CreditEscrow (Phase 2) are live too. The OpenAI-compatible router (Phase 3) has served live requests on mainnet through DeepSeek, with signed receipts that verify on chain. The settler (Phase 4) has posted the first batch on chain: every receipt in it proves its inclusion through `CreditEscrow.isInBatch`. The other three template policies (Cheap Only, Small Requests, Strict) and policy simulation are built and tested; their mainnet tape-out is the next step. The web app comes after that; see [BUILD_PLAN.md](BUILD_PLAN.md).
 
 ## Deployed on X Layer mainnet (chain 196)
 
