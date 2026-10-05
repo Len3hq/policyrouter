@@ -11,7 +11,7 @@ import { loadConfig } from "./config.ts";
 import { Store } from "./db.ts";
 import { createLogger } from "./log.ts";
 import { createOpenAICompatibleProvider } from "./providers/openai-compatible.ts";
-import { createPriceFeed, formatE8, selectSources } from "./price.ts";
+import { createPriceFeed, formatE8, selectSources, staticPriceFeed } from "./price.ts";
 import { RateLimiter } from "./ratelimit.ts";
 import { createReceiptSigner } from "./receipts.ts";
 import { Settler, createEscrowWriter } from "./settler.ts";
@@ -24,12 +24,10 @@ const log = createLogger([cfg.deepseekApiKey, cfg.routerPrivateKey]);
 const account = privateKeyToAccount(cfg.routerPrivateKey);
 
 // Live OKB/USD price. Wait for the first quote so the router doesn't start by refusing requests.
-const price = createPriceFeed({
-  sources: selectSources(cfg.priceSources),
-  refreshMs: cfg.priceRefreshMs,
-  maxAgeMs: cfg.priceMaxAgeMs,
-  log,
-});
+const price = cfg.priceStaticUsd
+  ? staticPriceFeed(cfg.priceStaticUsd)
+  : createPriceFeed({ sources: selectSources(cfg.priceSources), refreshMs: cfg.priceRefreshMs, maxAgeMs: cfg.priceMaxAgeMs, log });
+if (cfg.priceStaticUsd) log.warn("PRICE_STATIC_USD is set: using a fixed OKB price (tests only)", { usd: cfg.priceStaticUsd });
 const first = await price.refresh();
 if (first) log.info("OKB price", { usd: formatE8(first.okbUsdE8), source: first.source });
 else log.error("no OKB price at startup; charged requests return 503 until a source answers");
@@ -55,6 +53,9 @@ const app = createApp({
   limiter: new RateLimiter(cfg.rateLimitPerMinute),
   price,
   log,
+  corsOrigins: cfg.corsOrigins,
+  // /v1/responses (Codex) and /v1/messages (Claude Code) are forwarded to the provider's own endpoints for those formats
+  upstreams: { deepseek: { baseURL: cfg.deepseekBaseUrl, apiKey: cfg.deepseekApiKey } },
 });
 
 // Settles receipts on chain every SETTLE_INTERVAL_MS (0 = off; run `pnpm settle` instead).

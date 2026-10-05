@@ -85,7 +85,7 @@ export async function startAnvil(): Promise<{ url: string; stop: () => void }> {
 
 export interface MockProvider {
   baseURL: string;
-  requests: { body: Record<string, unknown>; auth: string | undefined }[];
+  requests: { body: Record<string, unknown>; auth: string | undefined; path?: string }[];
   close: () => Promise<void>;
 }
 
@@ -99,13 +99,23 @@ export async function startMockProvider(): Promise<MockProvider> {
     });
   const server: Server = createServer(async (req, res) => {
     const body = JSON.parse(await read(req)) as Record<string, unknown>;
-    requests.push({ body, auth: req.headers.authorization });
-    if (req.headers.authorization !== `Bearer ${PROVIDER_KEY}`) {
+    requests.push({ body, auth: req.headers.authorization ?? (req.headers["x-api-key"] as string | undefined), path: req.url });
+    if (req.headers.authorization !== `Bearer ${PROVIDER_KEY}` && req.headers["x-api-key"] !== PROVIDER_KEY) {
       res.writeHead(401, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: { message: `bad key ${req.headers.authorization}` } }));
       return;
     }
     const model = body.model as string;
+    if (req.url === "/responses") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ id: "r1", object: "response", model, output: [{ type: "message", content: [{ type: "output_text", text: "Policy" }] }], usage: { input_tokens: 30, input_tokens_details: { cached_tokens: 5 }, output_tokens: 3 } }));
+      return;
+    }
+    if (req.url === "/anthropic/v1/messages") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ id: "m1", type: "message", role: "assistant", model, content: [{ type: "text", text: "Policy" }], usage: { input_tokens: 20, cache_read_input_tokens: 6, output_tokens: 4 } }));
+      return;
+    }
     const usage = { prompt_tokens: 42, completion_tokens: 7, total_tokens: 49, prompt_cache_hit_tokens: 10, prompt_cache_miss_tokens: 32 };
     if (body.stream) {
       res.writeHead(200, { "content-type": "text/event-stream" });
@@ -216,6 +226,7 @@ export function startRouter(w: World, provider: MockProvider, opts: { rpcUrl?: s
       timeoutMs: 3000,
     }),
     providers: { deepseek: createOpenAICompatibleProvider({ name: "deepseek", baseURL: provider.baseURL, apiKey: PROVIDER_KEY }) },
+    upstreams: { deepseek: { baseURL: provider.baseURL, apiKey: PROVIDER_KEY } },
     signer: createReceiptSigner(w.routerAccount, domain),
     store,
     limiter: new RateLimiter(1000),

@@ -16,7 +16,9 @@ policyrouter/
 
   router/             OpenAI-compatible router (Hono): policy check, providers, receipts, SQLite, CLIs
 
-Planned: `web/` (Phases 6–7), `e2e/` (Phase 9).
+  web/                Owner web app (React + Vite + viem), component tests, Playwright E2E
+
+Planned: `e2e/` (Phase 9).
 
 `packages/policy` is the single source of truth for how bits are encoded and what each template does. The circuit build, the check script and, later, the router, simulation and Verify page all import it.
 
@@ -37,6 +39,7 @@ cp .env.example .env
 | --- | --- |
 | `pnpm test` | All TypeScript tests: bit encoding, netlists, templates (every circuit equals its rule on all 64 inputs), Merkle batch trees, golden circuit and Merkle vector files, deployment record |
 | `pnpm typecheck` | TypeScript type checks |
+| `pnpm --filter @policyrouter/web test` / `test:e2e` | Web component tests / the owner flow end to end on an anvil fork (needs `anvil` and `playwright install chromium`) |
 | `pnpm --filter @policyrouter/router test:integration` | The router against an anvil fork of X Layer: deploys Phase 2 and tapes out Cheap Only on the fork, runs real requests through a mock provider. Needs `anvil` |
 | `pnpm test:contracts` | Foundry unit, fuzz and invariant tests. Fork tests skip themselves when not forking |
 | `pnpm test:fork` | Only `test/fork/*`, against a fork of X Layer mainnet. These tape out real circuits on the real TapeOut contracts, locally; nothing is broadcast |

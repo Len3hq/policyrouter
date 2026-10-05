@@ -46,9 +46,11 @@ In TypeScript, use `encodeInput` and `decodeOutput` from `@policyrouter/policy`.
 | Policy | Rule | Status |
 | --- | --- | --- |
 | **Budget Guard** | Allow only if the kill switch is off and today's spend is under the cap. The requested tier is served unchanged | **Live: circuit 1, 8 gates** |
-| Cheap Only | Budget Guard, and any tier above 1 is downgraded to 1 | Built and tested, 10 gates. Mainnet tape-out ready (rehearsed: circuit 2) |
-| Small Requests | Budget Guard, and huge requests (`size = 3`) are denied | Built and tested, 11 gates. Mainnet tape-out ready (rehearsed: circuit 3) |
-| Strict | Cheap Only and Small Requests combined | Built and tested, 13 gates. Mainnet tape-out ready (rehearsed: circuit 4) |
+| **Cheap Only** | Budget Guard, and any tier above 1 is downgraded to 1 | **Live: circuit 2, 10 gates** |
+| **Small Requests** | Budget Guard, and huge requests (`size = 3`) are denied | **Live: circuit 3, 11 gates** |
+| **Strict** | Cheap Only and Small Requests combined | **Live: circuit 4, 13 gates** |
+
+Each one is proven against its full truth table on mainnet: `circuits/proof/<id>.txt`.
 
 Owners will also be able to build a custom policy and tape it out on our processor, burning one transistor per gate (Phase 8).
 

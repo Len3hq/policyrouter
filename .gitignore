@@ -19,3 +19,11 @@ keystore/
 
 # Local anvil rehearsals of the deploy scripts
 deployments/*rehearsal*.json
+
+# Web app
+web/dist/
+web/test-results/
+web/playwright-report/
+web/.env
+web/.env.*
+!web/.env.example

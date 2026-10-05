@@ -56,3 +56,22 @@ jobs:
         run: pnpm --filter @policyrouter/router test:integration
         env:
           XLAYER_RPC_URL: ${{ secrets.XLAYER_RPC_URL }}
+
+  web-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @policyrouter/web exec playwright install --with-deps chromium
+      - name: Owner flow end to end (anvil fork + router + web app, nothing is broadcast)
+        run: pnpm --filter @policyrouter/web test:e2e
+        env:
+          XLAYER_RPC_URL: ${{ secrets.XLAYER_RPC_URL }}

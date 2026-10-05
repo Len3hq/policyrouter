@@ -39,6 +39,10 @@ The router **fails closed**: if it can't read chain state or call `eval()`, it r
 | Endpoint | What it returns |
 | --- | --- |
 | `POST /v1/chat/completions` | OpenAI chat completion, streaming or not, plus `policyrouter_receipt` |
+| `POST /v1/responses` | OpenAI **Responses API** (what Codex uses). Policy-checked, then forwarded to the provider's `/responses` |
+| `POST /v1/messages` | Anthropic **Messages API** (what Claude Code uses). Key as `x-api-key` or a bearer token. Policy-checked, then forwarded to the provider's `/anthropic/v1/messages`. Errors use Anthropic's shape (`permission_error` for a denial) |
+| `POST /v1/messages/count_tokens` | A local token estimate for Claude Code. Nothing is served, so there is no policy check or charge |
+| `GET /v1/usage` | Authenticated with the agent's key: allowed, downgraded and denied counts, metered and unsettled spend, last 20 requests |
 | `GET /v1/simulate?template=…&limit=…` | Authenticated with the agent's key. Replays the key's own last `limit` requests (default 100, max 500), or a 20-request sample if it has none, through one template or all four. Returns allowed, downgraded and denied counts, spend with and without the policy, and `savingsPct`. See [policies.md](policies.md#policy-simulation) |
 | `GET /v1/models` | The catalog: `cheap` (tier 0), `standard` (1), `premium` (2), `frontier` (3) |
 | `GET /v1/receipts/:requestId` | A stored receipt, its EIP-712 hash, whether it was allowed, and once settled: `settlement { batchId, status, root, proof, txHash, blockNumber }` |
@@ -103,6 +107,27 @@ Mainnet example, the first served request (batch 0):
   cost:      OK  (14 prompt / 0 cached / 24 completion tokens, peak, OKB at $122.65 → 295964125561 wei)
   settled:   OK  (isInBatch(0, 0x37858b22…, 2-step proof) on 0xCc2d…7F7A, tx 0xd472e211…)
 ``` It also prints the `cast call` so anyone can repeat the check without this repo.
+
+## Using it with coding agents
+
+All three wire formats run the same pipeline: auth, rate limit, tier, size bucket, `eval()` at a pinned block, a deny with a signed receipt, the live OKB price, and the tier's forced thinking mode. Each is then forwarded to DeepSeek's endpoint for that format. Responses and Messages bodies pass through byte for byte; the router reads usage from the final JSON or from the stream's events (`response.completed`, or `message_start` plus `message_delta`). For a stream, the receipt is stored at the end and served at `GET /v1/receipts/<x-policyrouter-request-id>`.
+
+| Client | Setup |
+| --- | --- |
+| OpenAI SDK (Node, Python), LangChain, … | `OPENAI_BASE_URL=<router>/v1`, `OPENAI_API_KEY=pr-live-…` |
+| Codex | `~/.codex/config.toml`: a provider with `base_url = "<router>/v1"`, `env_key = "OPENAI_API_KEY"`, **`wire_api = "responses"`** (Codex 0.160 no longer supports `"chat"`) |
+| Claude Code | `ANTHROPIC_BASE_URL=<router>` (no `/v1`), `ANTHROPIC_AUTH_TOKEN=pr-live-…`, `ANTHROPIC_MODEL=standard`, `ANTHROPIC_DEFAULT_HAIKU_MODEL=cheap` (and the `_SONNET_`/`_OPUS_` variants) |
+
+**Measured on mainnet (2026-10-02),** with real DeepSeek, from setting the variables to a signed answer (not counting installing the tool). Every receipt verified with `verify-receipt`:
+
+| Client | Result | Time |
+| --- | --- | --- |
+| OpenAI SDK, Node | `standard` answered | 2.5 s |
+| OpenAI SDK, Python 3.14 (`openai` 3.23) | `cheap` answered | 3.3 s |
+| Codex 0.160, `codex exec` | "codex works", streamed over `/v1/responses` | 8.5 s |
+| Claude Code 2.1.236, `claude -p` | "claude code works", streamed over `/v1/messages` | 4.0 s |
+
+**Size buckets and coding agents:** Claude Code's requests carry a large system prompt and output budget, so they land in size bucket 3 ("huge"): about 18k prompt tokens in the test above. **Small Requests and Strict deny most Claude Code requests.** Use Budget Guard or Cheap Only for it. Codex's test request was bucket 2.
 
 ## Model catalog
 
@@ -210,7 +235,7 @@ This prints the key once, stores only its hash, and prints the `cast send` comma
 
 | Suite | Command | What it covers |
 | --- | --- | --- |
-| Unit (87) | `pnpm --filter @policyrouter/router test` | Catalog, USD→OKB conversion at the live rate, the price feed (fallback order, junk, expiry, jump guard), peak hours, cache-aware pricing and size buckets; refusing charged requests with no fresh price; price source back-off and selection; batch building (trees of 1, 2 and 1,000, per-agent sums, agent cap); the settler's crash, pending, dropped-tx and conflict paths against a fake escrow; forcing the tier's thinking mode; keys; rate limit; log redaction; the policy checker (allow, downgrade, deny, and refusing on eval failure, read failure or empty output); the full HTTP gateway with fake chain and provider (auth, validation, 429, deny, downgrade, 503, 502 without leaks, streaming, receipts, models) |
-| Integration (16) | `pnpm --filter @policyrouter/router test:integration` | A real router against an anvil fork of X Layer: Phase 2 deployed on the fork, Cheap Only taped out on the live processor, the real chain reader and provider adapter, and a mock provider. Covers allow, downgrade, kill switch, cap reached, unfunded, unknown key, RPC down, streaming, receipt replay, and checking no secret is logged. Settler: balances drop by each agent's sum, the root is on chain, every proof (a denial included) verifies in `isInBatch`, an empty interval sends nothing, and crashes after commit, after send, and with the tx still in the mempool are recovered without double debits |
+| Unit (101) | `pnpm --filter @policyrouter/router test` | Catalog, USD→OKB conversion at the live rate, the price feed (fallback order, junk, expiry, jump guard), peak hours, cache-aware pricing and size buckets; refusing charged requests with no fresh price; price source back-off and selection; batch building (trees of 1, 2 and 1,000, per-agent sums, agent cap); the settler's crash, pending, dropped-tx and conflict paths against a fake escrow; forcing the tier's thinking mode; keys; rate limit; log redaction; the policy checker (allow, downgrade, deny, and refusing on eval failure, read failure or empty output); the full HTTP gateway with fake chain and provider (auth, validation, 429, deny, downgrade, 503, 502 without leaks, streaming, receipts, models) |
+| Integration (17) | `pnpm --filter @policyrouter/router test:integration` | A real router against an anvil fork of X Layer: Phase 2 deployed on the fork, Cheap Only taped out on the live processor, the real chain reader and provider adapter, and a mock provider. Covers allow, downgrade, kill switch, cap reached, unfunded, unknown key, RPC down, streaming, receipt replay, and checking no secret is logged. Settler: balances drop by each agent's sum, the root is on chain, every proof (a denial included) verifies in `isInBatch`, an empty interval sends nothing, and crashes after commit, after send, and with the tx still in the mempool are recovered without double debits |
 
 The integration suite needs `anvil` (Foundry) and runs in CI.

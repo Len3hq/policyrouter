@@ -262,6 +262,23 @@ export class Store {
     return rows.map((r) => receiptFromJson(JSON.parse(r.receipt_json) as ReceiptJson));
   }
 
+  /** Decision counts and spend for one key. */
+  usageForKey(keyHash: Hex): { requests: number; allowed: number; downgraded: number; denied: number; spentWei: bigint; unsettledWei: bigint } {
+    const rows = this.db
+      .prepare("SELECT input_bits, output_bits, cost_wei, batch_id FROM receipts WHERE key_hash = ?")
+      .all(keyHash) as { input_bits: number; output_bits: number; cost_wei: string; batch_id: number | null }[];
+    const out = { requests: rows.length, allowed: 0, downgraded: 0, denied: 0, spentWei: 0n, unsettledWei: 0n };
+    for (const r of rows) {
+      if ((r.output_bits & 1) === 0) out.denied++;
+      else if (r.output_bits >> 1 < (r.input_bits & 3)) out.downgraded++;
+      else out.allowed++;
+      const cost = BigInt(r.cost_wei);
+      out.spentWei += cost;
+      if (r.batch_id === null) out.unsettledWei += cost;
+    }
+    return out;
+  }
+
   close(): void {
     this.db.close();
   }

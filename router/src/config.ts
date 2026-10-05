@@ -22,6 +22,10 @@ export interface Config {
   priceSources: string | undefined;
   /** 0 disables the in-process settler */
   settleIntervalMs: number;
+  /** Comma-separated browser origins allowed to call the API; empty = any */
+  corsOrigins: string[];
+  /** Tests and local rehearsals only: a fixed OKB price instead of the live feed */
+  priceStaticUsd: string | undefined;
 }
 
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -57,5 +61,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     priceMaxAgeMs: Number(env.PRICE_MAX_AGE_MS ?? 600_000),
     priceSources: env.PRICE_SOURCES,
     settleIntervalMs: Number(env.SETTLE_INTERVAL_MS ?? 300_000),
+    corsOrigins: (env.CORS_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+    priceStaticUsd: env.PRICE_STATIC_USD || undefined,
   };
 }

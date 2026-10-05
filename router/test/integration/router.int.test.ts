@@ -178,6 +178,46 @@ describe.skipIf(!hasAnvil)("router on a mainnet fork", { timeout: 60_000 }, () =
     expect(router.store.getReceipt(receipt.requestId)?.hash).toBe(receiptHash(receipt, router.domain));
   });
 
+  it("Codex's Responses API and Claude Code's Messages API go through the same live policy check", async () => {
+    const { key, agentId } = await newAgent(w.cheapOnlyId);
+    const call = (path: string, body: unknown, headers: Record<string, string>) =>
+      router.app.request(path, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
+
+    const before = provider.requests.length;
+    const resp = await call("/v1/responses", { model: "frontier", input: "hi", max_output_tokens: 64 }, { authorization: `Bearer ${key}` });
+    expect(resp.status).toBe(200);
+    const r1 = receiptFromJson(((await resp.json()) as { policyrouter_receipt: ReceiptJson }).policyrouter_receipt);
+    expect(r1).toMatchObject({ agentId, modelRequested: "frontier", modelServed: "standard", promptTokens: 30, cachedPromptTokens: 5 });
+    expect(provider.requests[before]).toMatchObject({ path: "/responses", body: { model: "deepseek-flash" } });
+
+    const msg = await call("/v1/messages", { model: "cheap", max_tokens: 64, messages: [{ role: "user", content: "hi" }] }, { "x-api-key": key, "anthropic-version": "2023-06-01" });
+    expect(msg.status).toBe(200);
+    const r2 = receiptFromJson(((await msg.json()) as { policyrouter_receipt: ReceiptJson }).policyrouter_receipt);
+    expect(r2).toMatchObject({ modelServed: "cheap", promptTokens: 26, cachedPromptTokens: 6, completionTokens: 4 });
+    expect(provider.requests[before + 1]).toMatchObject({ path: "/anthropic/v1/messages", body: { model: "deepseek-flash", thinking: { type: "disabled" } } });
+
+    // both receipts replay on chain
+    for (const r of [r1, r2]) {
+      const out = (await w.pub.readContract({
+        address: r.processor,
+        abi: processorEvalAbi,
+        functionName: "eval",
+        args: [r.circuitId, `0x${r.inputBits.toString(16).padStart(2, "0")}` as Hex],
+        blockNumber: r.blockNumber,
+      })) as Hex;
+      expect(parseInt(out.slice(2, 4), 16)).toBe(r.outputBits);
+    }
+
+    // and the kill switch stops them too, in each format's own error shape
+    await w.send(w.owner, w.registry, w.registryAbi, "setKill", [agentId, true]);
+    const n = provider.requests.length;
+    const deniedMsg = await call("/v1/messages", { model: "cheap", max_tokens: 64, messages: [] }, { "x-api-key": key });
+    expect(deniedMsg.status).toBe(403);
+    expect(await deniedMsg.json()).toMatchObject({ type: "error", error: { type: "permission_error" } });
+    expect((await call("/v1/responses", { model: "cheap", input: "hi" }, { authorization: `Bearer ${key}` })).status).toBe(403);
+    expect(provider.requests.length).toBe(n);
+  });
+
   it("simulation replays this suite's real traffic and reaches the same decisions as the live circuits", async () => {
     const rows = router.store.db
       .prepare("SELECT key_hash, circuit_id FROM receipts GROUP BY key_hash, circuit_id")

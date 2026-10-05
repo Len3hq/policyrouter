@@ -9,14 +9,14 @@ traditional firewall:  request    → rules          → allow / deny
 PolicyRouter:          AI request → TapeOut policy → allow / deny / downgrade
 ```
 
-PolicyRouter will expose an OpenAI-compatible endpoint, so an agent that already works with OpenAI can sit behind it by changing two environment variables:
+PolicyRouter is an OpenAI-compatible endpoint (plus the Responses and Anthropic Messages formats), so an agent that already works with OpenAI, Codex or Claude Code sits behind it by changing a couple of environment variables:
 
 ```bash
 export OPENAI_BASE_URL=https://api.policyrouter.xyz/v1
 export OPENAI_API_KEY=pr-live-...
 ```
 
-> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. PolicyRegistry and CreditEscrow (Phase 2) are live too. The OpenAI-compatible router (Phase 3) has served live requests on mainnet through DeepSeek, with signed receipts that verify on chain. The settler (Phase 4) has posted the first batch on chain: every receipt in it proves its inclusion through `CreditEscrow.isInBatch`. The other three template policies (Cheap Only, Small Requests, Strict) and policy simulation are built and tested; their mainnet tape-out is the next step. The web app comes after that; see [BUILD_PLAN.md](BUILD_PLAN.md).
+> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. PolicyRegistry and CreditEscrow (Phase 2) are live too. The OpenAI-compatible router (Phase 3) has served live requests on mainnet through DeepSeek, with signed receipts that verify on chain. The settler (Phase 4) has posted the first batch on chain: every receipt in it proves its inclusion through `CreditEscrow.isInBatch`. All four template policies are live (circuits 1–4), and policy simulation shows an owner what a policy would have done to their own recent traffic. The owner web app (Phase 6) creates and funds agents, switches policies, and runs the kill switch. It's tested end to end on a mainnet fork. The OpenAI SDK (Node and Python), Codex and Claude Code have each been run through the router on mainnet. The Verify page comes next; see [BUILD_PLAN.md](BUILD_PLAN.md).
 
 ## Deployed on X Layer mainnet (chain 196)
 
@@ -28,13 +28,13 @@ export OPENAI_API_KEY=pr-live-...
 | PolicyRegistry (key → owner, circuit, cap, kill switch) | [`0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a`](https://www.oklink.com/xlayer/address/0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a) |
 | CreditEscrow (prepaid OKB, daily spend, settlement) | [`0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A`](https://www.oklink.com/xlayer/address/0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A) |
 | Deployment wallet | [`0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3`](https://www.oklink.com/xlayer/address/0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3) |
-| Budget Guard circuit | ID `1` on the processor |
+| Policy circuits | `1` Budget Guard · `2` Cheap Only · `3` Small Requests · `4` Strict, each proven 64/64 on mainnet |
 
 | Transistor parameter | Value |
 | --- | --- |
 | Supply cap | 1,000,000 |
 | Price | 0.0001 OKB each |
-| Burned | One per gate at tape-out (Budget Guard burned 8) |
+| Burned | One per gate at tape-out (42 so far: 8 + 10 + 11 + 13) |
 | Proceeds | Go to PolicyTreasury: 50% running costs, 50% a pool that grants free transistors for each new owner's first custom policy |
 
 Transaction hashes and the full parameter list are in [docs/deployments.md](docs/deployments.md).
@@ -52,11 +52,25 @@ cast call 0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99 "eval(uint256,bytes)(bytes)
 
 Or check all 64 rows: `pnpm --filter @policyrouter/circuits check 1 budget-guard`. The mainnet result is in [circuits/proof/budget-guard.txt](circuits/proof/budget-guard.txt).
 
+## Works with
+
+Measured on mainnet with real DeepSeek, from setting the environment to a signed answer:
+
+| Client | Time |
+| --- | --- |
+| OpenAI SDK (Node) | 2.5 s |
+| OpenAI SDK (Python) | 3.3 s |
+| Codex 0.160 (`wire_api = "responses"`) | 8.5 s |
+| Claude Code 2.1.236 (`ANTHROPIC_BASE_URL`) | 4.0 s |
+
+Setup for each is in [docs/router.md](docs/router.md#using-it-with-coding-agents).
+
 ## Documentation
 
 | Doc | What it covers |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | How a request flows through the router, the processor and the contracts; what is built and what is planned |
+| [docs/web.md](docs/web.md) | The owner web app: screens, where the key lives, running it, tests |
 | [docs/router.md](docs/router.md) | The OpenAI-compatible router: request flow, endpoints, receipts, the model catalog, running it, issuing keys |
 | [docs/contracts.md](docs/contracts.md) | PolicyRegistry and CreditEscrow: every function, the rules they enforce, receipt proofs, tests |
 | [docs/policies.md](docs/policies.md) | The 6-in / 3-out policy interface, the template policies, and how to verify a circuit |

@@ -29,6 +29,11 @@ PolicyRegistry and CreditEscrow are documented in [contracts.md](contracts.md).
 | ID | Policy | Gates | Owner | Proof |
 | --- | --- | --- | --- | --- |
 | 1 | Budget Guard | 8 | Deployment wallet | [`circuits/proof/budget-guard.txt`](../circuits/proof/budget-guard.txt): 64/64 rows match at block 72,128,138 |
+| 2 | Cheap Only | 10 | Deployment wallet | [`circuits/proof/cheap-only.txt`](../circuits/proof/cheap-only.txt): 64/64 rows match at block 72,171,899 |
+| 3 | Small Requests | 11 | Deployment wallet | [`circuits/proof/small-requests.txt`](../circuits/proof/small-requests.txt): 64/64 rows match at block 72,171,903 |
+| 4 | Strict | 13 | Deployment wallet | [`circuits/proof/strict.txt`](../circuits/proof/strict.txt): 64/64 rows match at block 72,171,906 |
+
+42 transistors have been minted and burned in total (8 + 10 + 11 + 13). Their mint price, 0.0042 OKB, is owed to PolicyTreasury, and anyone can call `sweep()` to split it.
 
 ## Settled batches
 
@@ -59,7 +64,7 @@ These were fixed at deployment and cannot be changed by anyone.
 
 ## Deployment transactions
 
-Sent by `contracts/script/DeployPhase1.s.sol` and `DeployPhase2.s.sol`. The full records are in `contracts/broadcast/DeployPhase{1,2}.s.sol/196/run-latest.json`.
+Sent by `contracts/script/DeployPhase1.s.sol`, `DeployPhase2.s.sol` and `DeployPhase5.s.sol`. The full records are in `contracts/broadcast/DeployPhase{1,2,5}.s.sol/196/run-latest.json`.
 
 | Step | Transaction | Block |
 | --- | --- | --- |
@@ -68,8 +73,12 @@ Sent by `contracts/script/DeployPhase1.s.sol` and `DeployPhase2.s.sol`. The full
 | Tape out Budget Guard (circuit 1) | [`0xf7992aa4…109309`](https://www.oklink.com/xlayer/tx/0xf7992aa41bee95ee9fcbb74db6872059ef642c5ea7d438d6b5f01d96ee109309) | 72,128,136 |
 | Deploy PolicyRegistry | [`0xa6ea342f…46e025`](https://www.oklink.com/xlayer/tx/0xa6ea342f35734bd253dac3ef8a99b1ba6fe3df73f96beb1f5c30c7c3bd46e025) | 72,159,847 |
 | Deploy CreditEscrow | [`0x364c121f…f8cfc`](https://www.oklink.com/xlayer/tx/0x364c121f20c842b59e8b18f5ec5a86efd5087c9dbbf91df1f0d0c05c787f8cfc) | 72,159,849 |
+| Mint 34 transistors for three templates (one call) | [`0xaa325e3a…9b23fd`](https://www.oklink.com/xlayer/tx/0xaa325e3ab96cd707e5e688abcaf3d4b0730656b03c18fe640bc8d062309b23fd) | 72,171,825 |
+| Tape out Cheap Only (circuit 2) | [`0xaf63e240…4f493a`](https://www.oklink.com/xlayer/tx/0xaf63e2405878c195b617cf9da33c1b1ddcfac2ad4f1a3a2daa9ea90c504f493a) | 72,171,828 |
+| Tape out Small Requests (circuit 3) | [`0x523cd8ab…8826af`](https://www.oklink.com/xlayer/tx/0x523cd8ab7c1cd5f6edcb9d2f8155456e1e086cbfb5c29b57ac9e51f3238826af) | 72,171,832 |
+| Tape out Strict (circuit 4) | [`0x70048bd9…76c04f`](https://www.oklink.com/xlayer/tx/0x70048bd9ea85bdc079e8fd183320e68736a3686041aa59ac04f4ede19d76c04f) | 72,171,835 |
 
-Total cost: Phase 1 was 0.00936 OKB in TapeOut fees and the transistor mint, plus 0.000044 OKB in gas. Phase 2 was 0.000038 OKB in gas.
+Total cost: Phase 1 was 0.00936 OKB in TapeOut fees and the transistor mint, plus 0.000044 OKB in gas. Phase 2 was 0.000038 OKB in gas. Phase 5 was 0.00796 OKB in TapeOut fees and the transistor mint, plus 0.000016 OKB in gas.
 
 ## Verify every claim
 

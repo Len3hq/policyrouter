@@ -257,14 +257,14 @@ Built, tested, and run on mainnet. Reference: [docs/router.md#settlement](docs/r
 
 ## Phase 5 — Remaining templates and policy simulation
 
-Built and tested. The mainnet tape-out is ready and waits on a deployer top-up.
+Built, tested, and live on mainnet.
 
 **Tasks**
 
 1. [x] Add `cheapOnly`, `smallRequests` and `strict` to `packages/policy`, with golden JSON truth tables (`circuits/*.json`)
 2. [x] Wire and simulate each one: Cheap Only **10 gates**, Small Requests **11**, Strict **13** (`circuits/README.md`)
-3. [ ] **Tape out on mainnet** with `contracts/script/DeployPhase5.s.sol`. It mints all 34 transistors in one call (one protocol fee), tapes out the three, checks each against all 64 rows, and records the ids in `deployments/xlayer.json`. **Needs about 0.008 OKB; send 0.01 OKB to the deployer first.** Rehearsed on a fork as the real deployer: circuits 2, 3 and 4, and `check.ts` 64/64 for each
-4. [ ] `check.ts` on mainnet for each, saving `circuits/proof/{cheap-only,small-requests,strict}.txt`
+3. [x] **Tape out on mainnet** with `contracts/script/DeployPhase5.s.sol`: one mint of 34 transistors (block 72,171,825), then Cheap Only = **circuit 2**, Small Requests = **circuit 3**, Strict = **circuit 4** (blocks 72,171,828 to 72,171,835). 0.00796 OKB in fees and mint, 0.000016 OKB in gas
+4. [x] `check.ts` on mainnet for each: structure match and 64/64 rows, saved to `circuits/proof/{cheap-only,small-requests,strict}.txt`. PolicyRegistry accepts circuits 2–4 (simulated registration)
 5. [x] **Simulation** `packages/policy/src/simulate.ts`
    - `simulatePolicy(template, requests[], price) → { requests, allowed, downgraded, denied, spendWithout, spendWith, savingsPct }`. The price function is passed in, so the policy package stays independent of the router's catalog
    - The inputs are the key's recent receipts (`simRequestFromReceipt`: tier, size and flags from `inputBits`, plus actual tokens; typical usage per size bucket for denials)
@@ -278,49 +278,60 @@ Built and tested. The mainnet tape-out is ready and waits on a deployer top-up.
 | ✅ Template tables | Each template's 64 rows match its plain-English rule. Cheap Only never outputs `route_tier > 1`; Small Requests denies every row with `size = 3` and otherwise equals Budget Guard; Strict equals Cheap Only plus Small Requests row by row |
 | ✅ Safety properties (exhaustive over all 64 inputs, stronger than random sampling at this size) | No template ever allows when `kill = 1` or `budget_ok = 0`; no template routes above the requested tier; denials always report tier 0 |
 | ✅ Fork tape-out (`TemplatesFork.t.sol`) | All three tape out on the live processor, burn exactly their gates, store the netlist verbatim, and match all 64 rows |
-| ⬜ On-chain match | `check.ts` gives 64/64 for each of the three new circuits on mainnet (64/64 in the fork rehearsal) |
+| ✅ On-chain match | `check.ts` gives 64/64 for each of the three new circuits on mainnet; a test asserts every proof file records 64/64 and its circuit id |
 | ✅ Simulation counts | allowed + downgraded + denied = number of requests, for every template and workload |
 | ✅ Simulation money | A hand-built set of 10 requests gives exact expected spends under all four templates (Cheap Only: 15,000 of 26,000 wei, 42.3% saved); denied requests cost 0; `savingsPct` is 0 under a policy that allows everything at the requested tier; empty history gives zeros |
 | ✅ Simulation vs router | Unit: traffic across all four circuits (every tier, small and huge, killed and over-budget agents) gives simulated counts equal to the router's actual decisions. Integration: every receipt the Phase 3 fork suite produced, replayed, matches the live circuits' decisions |
 | ✅ Endpoint | A key can only simulate its own history (another key gets the sample); needs a key; unknown template is 400; `limit` caps the window |
 
-**Exit gate:** four templates live on mainnet with proofs ⬜ (needs the top-up and broadcast). Simulation output matches real router decisions ✅.
+**Exit gate:** four templates live on mainnet with proofs ✅. Simulation output matches real router decisions ✅.
 
 ---
 
 ## Phase 6 — Web app
 
+Built and tested. Reference: [docs/web.md](docs/web.md).
+
+**Design changes from the plan**
+- **viem directly, not wagmi:** any EIP-1193 wallet works, with fewer dependencies (wagmi is now on v3).
+- **Agents listed by a multicall over `agent(1..agentCount)`:** the public RPC caps `eth_getLogs` at 100 blocks, so events can't be used.
+- **The router never needs the key hash sent to it:** auth is on chain.
+
 **Tasks**
 
-1. **Connect and fund:** wagmi with X Layer chain config, deposit OKB, show the balance
-2. **Create agent:** generate the key in the browser, show it once, call `registerKey` with its hash, and send the hash to the router
-3. **Choose a policy:** four template cards, each with its plain-English rule, a link to its circuit on the TapeOut processor page, and a **Simulate** panel (allowed, downgraded and denied counts plus savings). The **Use this policy** button calls `setCircuit`
-4. **Agent dashboard:** base URL, key, spend today against the cap, allow/downgrade/deny counts, the kill switch, and an "edit cap" field
-5. **60-second quickstart panel:** copy buttons for:
-   ```bash
-   export OPENAI_BASE_URL=https://api.policyrouter.xyz/v1
-   export OPENAI_API_KEY=pr-live-...
-   ```
-   plus short tabs for Claude Code, Codex and the OpenAI SDK
-6. Transistor facts shown in the footer: supply, price, cap, amount burned so far
+1. [x] **Connect and fund:** EIP-1193 wallet, an X Layer chain config (with `wallet_addEthereumChain` if the wallet doesn't know it), deposit OKB, show the balance
+2. [x] **Create agent:** the key is generated in the browser and shown once; `registerAgent` with its hash, then `deposit`. The agent id comes from the `AgentRegistered` event
+3. [x] **Choose a policy:** four template cards, each with its rule, circuit id, gate count, a link to its 64/64 mainnet proof and the processor, and a **Simulate** panel (allowed, downgraded and denied counts plus savings; the sample workload before there's history). **Use this policy** calls `setCircuit`
+4. [x] **Agent dashboard:** status, balance, spend today against the cap, allowed/downgraded/denied counts (`GET /v1/usage`), the kill switch, set cap, deposit. A key not in this session can be pasted to unlock usage (checked against the on-chain key hash)
+5. [x] **60-second quickstart panel:** copy buttons for the base URL, the key and both `export` lines, plus tabs for the OpenAI SDK (Node and Python), Codex and Claude Code
+6. [x] Transistor facts in the footer, read live: supply cap, price, minted, remaining
+7. [x] **Router additions for the app:** CORS; `GET /v1/usage`; `GET /v1/simulate` without a key returns the sample workload; `PRICE_STATIC_USD` for tests
+8. [x] **Extra, needed for the exit gate: two more wire formats.** The timed test found that Codex 0.160 only speaks the Responses API (`wire_api = "chat"` was removed) and Claude Code only speaks the Anthropic Messages API. The router now serves `POST /v1/responses` and `POST /v1/messages` (+ `count_tokens`) with the same policy check, metering and receipts, forwarded to DeepSeek's endpoints for those formats. Thinking mode is forced per tier in each format (`reasoning.effort = "none"` / `thinking.type = "disabled"`)
 
 **Tests**
 
-Component (Vitest + Testing Library)
-- [ ] Simulation panel renders counts and savings from a fixed response; renders the "sample workload" notice when there is no history
-- [ ] The key is shown once and hidden after confirmation
-- [ ] Quickstart copy buttons copy exactly the base URL and key
+Component (Vitest + Testing Library, 11 tests)
+- [x] Simulation panel renders counts and savings from a fixed response; renders the "sample workload" notice when there is no history; says "request" for one
+- [x] The key is shown once and hidden after confirmation; its copy button copies exactly the key
+- [x] Quickstart copy buttons copy exactly the base URL, the key and the two lines; placeholder without a key; Codex uses `wire_api = "responses"`; Claude Code gets its base URL without `/v1` and the size warning
+- [x] Browser-generated keys are in the router's format and hash exactly as the router does
 
-E2E (Playwright, against anvil fork + local router, with a test wallet injected)
-- [ ] Full owner flow: connect → deposit → create agent → pick Cheap Only → dashboard shows the policy and balance
-- [ ] Kill switch on the dashboard → a `curl` with the key returns 403 → switch off → `curl` succeeds
-- [ ] Lowering the cap below today's spend → next request is denied, and the dashboard deny count increases
-- [ ] Wrong network → the app prompts a switch to X Layer
+E2E (Playwright, 5 tests; anvil fork of mainnet + the real router process + mock provider + Vite, with a built-in test wallet)
+- [x] Full owner flow: connect → create agent (deposit) → key shown once → dashboard shows Budget Guard and the balance → pick Cheap Only → a frontier request is downgraded and counted on the dashboard
+- [x] Kill switch on the dashboard → a request returns 403 → switch off → it succeeds
+- [x] Lowering the cap below today's (settled) spend → next request denied, and the dashboard deny count increases; a pasted wrong key is refused, the right one unlocks usage
+- [x] Wrong network → the app prompts a switch to X Layer, and switching clears it
+- [x] Landing page without a wallet: quickstart, four simulated policies, transistor facts
 
-60-second test (manual, timed, on mainnet)
-- [ ] Starting from a funded agent, set the two env vars and get a response through the router with each of: OpenAI SDK (Node and Python), Claude Code (or its OpenAI-compatible mode, if supported; otherwise note it in the README), Codex. Each is under 60 seconds. Record the results in the README
+Router (passthrough): 14 more unit tests (forwarding, thinking enforcement, usage from JSON and SSE, bytes passed through, Anthropic error shapes, no leaks, count_tokens) and 1 fork integration test (both formats through the live circuits, receipts replayed, kill switch).
 
-**Exit gate:** the Playwright suite passes, and the timed quickstart works with at least the OpenAI SDK and one coding agent.
+60-second test (mainnet, real DeepSeek, 2026-10-02; timed from setting the environment to a signed answer; every receipt verified)
+- [x] OpenAI SDK (Node): 2.5 s
+- [x] OpenAI SDK (Python): 3.3 s
+- [x] Codex 0.160 (`codex exec`, `wire_api = "responses"`): 8.5 s
+- [x] Claude Code 2.1.236 (`claude -p`, `ANTHROPIC_BASE_URL`): 4.0 s. Its requests are size bucket 3, so Small Requests and Strict deny most of them (stated in the quickstart)
+
+**Exit gate:** the Playwright suite passes ✅, and the timed quickstart works with at least the OpenAI SDK and one coding agent ✅ (two coding agents: Codex and Claude Code).
 
 ---
 

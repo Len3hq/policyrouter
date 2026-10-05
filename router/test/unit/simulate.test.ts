@@ -72,9 +72,14 @@ describe("GET /v1/simulate", () => {
     expect(((await (await simulate(b)).json()) as SimBody)).toMatchObject({ source: "sample", requests: 20 });
   });
 
-  it("requires a key, rejects unknown templates, and caps the history window", async () => {
+  it("without a key, simulates the sample workload (for choosing a policy before an agent exists)", async () => {
+    const { simulate } = setup();
+    const body = (await (await simulate(null)).json()) as SimBody;
+    expect(body).toMatchObject({ source: "sample", requests: 20 });
+  });
+
+  it("rejects malformed keys and unknown templates, and caps the history window", async () => {
     const { agent, chat, simulate } = setup();
-    expect((await simulate(null)).status).toBe(401);
     expect((await simulate("pr-live-nope")).status).toBe(401);
     const key = agent(1n);
     expect((await simulate(key, "?template=yolo")).status).toBe(400);
@@ -111,5 +116,33 @@ describe("GET /v1/simulate", () => {
       }
       expect(simulated, template.id).toEqual(actual);
     }
+  });
+});
+
+describe("GET /v1/usage", () => {
+  it("counts the key's own decisions and spend, and lists recent requests", async () => {
+    const { t, agent, chat } = setup();
+    const key = agent(2n); // Cheap Only
+    await chat(key, "cheap");
+    await chat(key, "frontier"); // downgraded
+    const other = agent(1n, { killed: true });
+    await chat(other, "cheap"); // denied, someone else's
+    const r = await t.app.request("/v1/usage", { headers: { authorization: `Bearer ${key}` } });
+    const u = (await r.json()) as { requests: number; allowed: number; downgraded: number; denied: number; spentWei: string; unsettledWei: string; recent: { downgraded: boolean }[] };
+    expect(u).toMatchObject({ requests: 2, allowed: 1, downgraded: 1, denied: 0 });
+    expect(BigInt(u.spentWei)).toBeGreaterThan(0n);
+    expect(u.unsettledWei).toBe(u.spentWei);
+    expect(u.recent.filter((x) => x.downgraded)).toHaveLength(1);
+  });
+
+  it("needs a key", async () => {
+    const { t } = setup();
+    expect((await t.app.request("/v1/usage")).status).toBe(401);
+  });
+
+  it("allows browser calls (CORS) and exposes the receipt headers", async () => {
+    const { t } = setup();
+    const r = await t.app.request("/v1/simulate", { method: "OPTIONS", headers: { origin: "http://localhost:5173", "access-control-request-method": "GET" } });
+    expect(r.headers.get("access-control-allow-origin")).toBe("*");
   });
 });

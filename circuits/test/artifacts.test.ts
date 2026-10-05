@@ -16,6 +16,18 @@ describe("deployments/xlayer.json", () => {
     expect(d.creditEscrow).toBe(POLICYROUTER.creditEscrow);
     expect(d.router).toBe(POLICYROUTER.router);
     expect(BigInt(d.budgetGuardCircuitId)).toBe(POLICYROUTER.circuits["budget-guard"]);
+    expect(BigInt(d.cheapOnlyCircuitId)).toBe(POLICYROUTER.circuits["cheap-only"]);
+    expect(BigInt(d.smallRequestsCircuitId)).toBe(POLICYROUTER.circuits["small-requests"]);
+    expect(BigInt(d.strictCircuitId)).toBe(POLICYROUTER.circuits.strict);
+  });
+});
+
+describe("mainnet proofs", () => {
+  it.each(TEMPLATES.map((t) => [t.id] as const))("circuits/proof/%s.txt records 64/64 and a matching structure", (id) => {
+    const proof = readFileSync(new URL(`../proof/${id}.txt`, import.meta.url), "utf8");
+    expect(proof).toContain("64/64 rows match");
+    expect(proof).toContain("structure (nIn, nOut, nState = 0, gateCount, netlist bytes): match");
+    expect(proof).toContain(`circuit ${POLICYROUTER.circuits[id as keyof typeof POLICYROUTER.circuits]}  block`);
   });
 });
 

@@ -6,6 +6,7 @@
 // receipt → return it with the response. Any failure of the policy check refuses the request.
 
 import { Hono, type Context } from "hono";
+import { cors } from "hono/cors";
 import {
   POLICYROUTER,
   SAMPLE_WORKLOAD,
@@ -38,6 +39,7 @@ import { PolicyUnavailable, UnknownKey, checkPolicy, type Decision } from "./pol
 import type { ChatChunk, ChatParams, Provider } from "./providers/types.ts";
 import { UpstreamError } from "./providers/types.ts";
 import type { PriceFeed, PriceQuote } from "./price.ts";
+import { registerPassthrough, type Upstream } from "./passthrough.ts";
 import type { RateLimiter } from "./ratelimit.ts";
 import { newRequestId, type ReceiptSigner } from "./receipts.ts";
 
@@ -51,6 +53,11 @@ export interface AppDeps {
   /** Live OKB/USD price; requests that would be charged are refused while it is unavailable */
   price: PriceFeed;
   log: Logger;
+  /** Browser origins allowed to call the API (the web app). Default "*": keys are bearer tokens, no cookies. */
+  corsOrigins?: string[];
+  /** Provider endpoints for the Responses and Anthropic Messages passthrough (by catalog provider name) */
+  upstreams?: Readonly<Record<string, Upstream>>;
+  fetchFn?: typeof fetch;
 }
 
 export const RECEIPT_HEADER = "x-policyrouter-receipt";
@@ -64,6 +71,14 @@ type Status = 400 | 401 | 403 | 404 | 429 | 500 | 502 | 503;
 export function createApp(deps: AppDeps): Hono {
   const { catalog, chain, providers, signer, store, limiter, price, log } = deps;
   const app = new Hono();
+  app.use(
+    "*",
+    cors({
+      origin: deps.corsOrigins && deps.corsOrigins.length > 0 ? deps.corsOrigins : "*",
+      allowHeaders: ["authorization", "content-type", "x-api-key", "anthropic-version", "anthropic-beta"],
+      exposeHeaders: [RECEIPT_HEADER, REQUEST_ID_HEADER],
+    }),
+  );
 
   const fail = (c: Context, status: Status, body: ErrorBody, headers: Record<string, string> = {}) => {
     for (const [k, v] of Object.entries(headers)) c.header(k, v);
@@ -105,13 +120,15 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   // What each template policy would have done to this key's recent requests (or a sample workload
-  // if it has none). Only the caller's own history is used: the key selects it.
+  // if it has none). Only the caller's own history is used: the key selects it. Without a key, the
+  // sample workload is used (for choosing a policy before an agent exists).
   app.get("/v1/simulate", (c) => {
-    const key = keyFromAuthHeader(c.req.header("authorization"));
-    if (!key) return fail(c, 401, ERR.missingKey());
-    if (!isWellFormedKey(key)) return fail(c, 401, ERR.badKey());
-    const keyHash = hashKey(key);
-    if (!limiter.take(keyHash)) return fail(c, 429, ERR.rateLimited());
+    const header = c.req.header("authorization");
+    const key = keyFromAuthHeader(header);
+    if (header && !key) return fail(c, 401, ERR.badKey());
+    if (key && !isWellFormedKey(key)) return fail(c, 401, ERR.badKey());
+    const keyHash = key ? hashKey(key) : undefined;
+    if (!limiter.take(keyHash ?? `anon:${c.req.header("x-forwarded-for") ?? "local"}`)) return fail(c, 429, ERR.rateLimited());
 
     const only = c.req.query("template");
     const templates = only ? TEMPLATES.filter((t) => t.id === only) : TEMPLATES;
@@ -120,7 +137,7 @@ export function createApp(deps: AppDeps): Hono {
     }
     const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 100) || 100, 1), 500);
 
-    const history = store.recentForKey(keyHash, limit).map(simRequestFromReceipt);
+    const history = keyHash ? store.recentForKey(keyHash, limit).map(simRequestFromReceipt) : [];
     const source = history.length > 0 ? "history" : "sample";
     const requests: readonly SimRequest[] = history.length > 0 ? history : SAMPLE_WORKLOAD;
 
@@ -150,6 +167,26 @@ export function createApp(deps: AppDeps): Hono {
         };
       }),
     });
+  });
+
+  // An agent's own usage, for its dashboard: decision counts, spend, and recent requests.
+  app.get("/v1/usage", (c) => {
+    const key = keyFromAuthHeader(c.req.header("authorization"));
+    if (!key) return fail(c, 401, ERR.missingKey());
+    if (!isWellFormedKey(key)) return fail(c, 401, ERR.badKey());
+    const keyHash = hashKey(key);
+    if (!limiter.take(keyHash)) return fail(c, 429, ERR.rateLimited());
+    const u = store.usageForKey(keyHash);
+    const recent = store.recentForKey(keyHash, 20).map((r) => ({
+      requestId: r.requestId,
+      modelRequested: r.modelRequested,
+      modelServed: r.modelServed,
+      allowed: (r.outputBits & 1) === 1,
+      downgraded: (r.outputBits & 1) === 1 && r.outputBits >> 1 < (r.inputBits & 3),
+      costWei: r.costWei.toString(),
+      timestamp: r.timestamp.toString(),
+    }));
+    return c.json({ ...u, spentWei: u.spentWei.toString(), unsettledWei: u.unsettledWei.toString(), recent });
   });
 
   app.post("/v1/chat/completions", async (c) => {
@@ -364,6 +401,8 @@ export function createApp(deps: AppDeps): Hono {
       return fail(ctx, 502, { ...ERR.upstream(status), policyrouter_receipt: receipt }, { [REQUEST_ID_HEADER]: requestId });
     }
   });
+
+  if (deps.upstreams) registerPassthrough(app, { ...deps, upstreams: deps.upstreams });
 
   app.notFound((c) => c.json(ERR.notFound(), 404));
   app.onError((e, c) => {

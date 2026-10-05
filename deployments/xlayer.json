@@ -16,9 +16,9 @@
   "opsBps": 5000,
   "maxGrant": 50,
   "budgetGuardCircuitId": 1,
-  "cheapOnlyCircuitId": 0,
-  "smallRequestsCircuitId": 0,
-  "strictCircuitId": 0,
+  "cheapOnlyCircuitId": 2,
+  "smallRequestsCircuitId": 3,
+  "strictCircuitId": 4,
   "transactions": {
     "deployTreasuryAndCreateProcessor": {
       "hash": "0x276284acfa83ea859e4e473b36ac511534128936f6bb4cf6405c6d62f1e6c11f",
@@ -39,6 +39,22 @@
     "deployCreditEscrow": {
       "hash": "0x364c121f20c842b59e8b18f5ec5a86efd5087c9dbbf91df1f0d0c05c787f8cfc",
       "block": 72159849
+    },
+    "mintTemplateTransistors": {
+      "hash": "0xaa325e3ab96cd707e5e688abcaf3d4b0730656b03c18fe640bc8d062309b23fd",
+      "block": 72171825
+    },
+    "tapeoutCheapOnly": {
+      "hash": "0xaf63e2405878c195b617cf9da33c1b1ddcfac2ad4f1a3a2daa9ea90c504f493a",
+      "block": 72171828
+    },
+    "tapeoutSmallRequests": {
+      "hash": "0x523cd8ab7c1cd5f6edcb9d2f8155456e1e086cbfb5c29b57ac9e51f3238826af",
+      "block": 72171832
+    },
+    "tapeoutStrict": {
+      "hash": "0x70048bd9ea85bdc079e8fd183320e68736a3686041aa59ac04f4ede19d76c04f",
+      "block": 72171835
     }
   }
 }

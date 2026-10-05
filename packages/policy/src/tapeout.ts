@@ -24,6 +24,9 @@ export const POLICYROUTER = {
   router: "0xbFF88F4CBe6723467A1c9BBbF187d8e2aB8FD5f3",
   circuits: {
     "budget-guard": 1n,
+    "cheap-only": 2n,
+    "small-requests": 3n,
+    strict: 4n,
   },
 } as const;
 

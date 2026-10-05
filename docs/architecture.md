@@ -31,10 +31,10 @@ flowchart TB
 | Budget Guard circuit | ✅ Live, circuit 1, verified 64/64 | [policies.md](policies.md) |
 | Shared policy library (bits, netlists, templates) | ✅ Built | [`packages/policy`](../packages/policy) |
 | PolicyRegistry, CreditEscrow | ✅ Live (100% line coverage) | [contracts.md](contracts.md), [deployments.md](deployments.md) |
-| Router service | ✅ Built, tested (82 unit, 15 fork integration) and run live on mainnet with DeepSeek; receipts verified | [router.md](router.md) |
+| Router service | ✅ Chat completions, Responses (Codex) and Anthropic Messages (Claude Code). 101 unit and 17 fork integration tests; run live on mainnet with DeepSeek, and every receipt verified | [router.md](router.md) |
 | Settler (Merkle roots) | ✅ Built, tested (crash recovery on a fork), first batch settled on mainnet | [router.md](router.md#settlement) |
-| Other templates + policy simulation | Cheap Only circuit built (used by router tests), not yet taped out on mainnet; rest planned (Phase 5) | [policies.md](policies.md) |
-| Web app | Planned (Phase 6) | — |
+| Other templates + policy simulation | ✅ Cheap Only, Small Requests and Strict live (circuits 2–4, 64/64 each); `GET /v1/simulate` built and tested | [policies.md](policies.md) |
+| Web app | ✅ Built and tested end to end on a fork (Playwright); not hosted yet | [web.md](web.md) |
 | Verify page | Planned (Phase 7) | — |
 
 ## One request, start to finish

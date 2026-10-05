@@ -84,7 +84,7 @@ export class FakeProvider implements Provider {
   };
 }
 
-export function makeApp(opts: { rateLimit?: number; price?: PriceFeed } = {}) {
+export function makeApp(opts: { rateLimit?: number; price?: PriceFeed; fetchFn?: typeof fetch } = {}) {
   const chain = new FakeChain();
   const provider = new FakeProvider();
   const store = new Store(":memory:");
@@ -99,6 +99,8 @@ export function makeApp(opts: { rateLimit?: number; price?: PriceFeed } = {}) {
     store,
     limiter: new RateLimiter(opts.rateLimit ?? 1000),
     price: opts.price ?? staticPriceFeed("122.09"),
+    upstreams: { deepseek: { baseURL: "https://upstream.test", apiKey: PROVIDER_SECRET } },
+    fetchFn: opts.fetchFn ?? (async () => new Response("no upstream in this test", { status: 599 })),
     log: createLogger([PROVIDER_SECRET, ROUTER_KEY], (l) => lines.push(l)),
   });
   return { app, chain, provider, store, lines, account, domain };
