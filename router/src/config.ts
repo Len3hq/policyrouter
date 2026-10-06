@@ -10,8 +10,8 @@ export interface Config {
   registry: Address;
   escrow: Address;
   routerPrivateKey: Hex;
-  deepseekBaseUrl: string;
-  deepseekApiKey: string;
+  /** The model catalog (models, providers, prices). Provider keys come from the env vars it names. */
+  catalogPath: string | undefined;
   databasePath: string;
   rateLimitPerMinute: number;
   blockCacheMs: number;
@@ -51,8 +51,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     registry: addr("POLICY_REGISTRY_ADDRESS"),
     escrow: addr("CREDIT_ESCROW_ADDRESS"),
     routerPrivateKey: key as Hex,
-    deepseekBaseUrl: env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
-    deepseekApiKey: need("DEEPSEEK_API_KEY"),
+    catalogPath: env.CATALOG_PATH || undefined,
     databasePath: env.DATABASE_PATH || "policyrouter.sqlite",
     rateLimitPerMinute: Number(env.RATE_LIMIT_PER_MINUTE ?? 60),
     blockCacheMs: Number(env.BLOCK_CACHE_MS ?? 1000),

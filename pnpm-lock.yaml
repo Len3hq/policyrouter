@@ -52,6 +52,28 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.19.1)(jsdom@26.1.0)(tsx@4.23.15)
 
+  packages/sdk:
+    dependencies:
+      '@policyrouter/policy':
+        specifier: workspace:*
+        version: link:../policy
+      openai:
+        specifier: ^5.20.0
+        version: 5.23.2(ws@8.21.0)
+      viem:
+        specifier: ^2.37.0
+        version: 2.57.2(typescript@5.9.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.1
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.19.1)(jsdom@26.1.0)(tsx@4.23.15)
+
   router:
     dependencies:
       '@hono/node-server':

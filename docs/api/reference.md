@@ -69,7 +69,7 @@ A denial is `permission_error`. Model names must be one of the four below, not A
 | `premium` | 2 | DeepSeek V4 Pro | off |
 | `frontier` | 3 | DeepSeek V4 Pro | on |
 
-An unknown model returns `404 model_not_found`.
+An unknown model returns `404 model_not_found`. A model served by a provider without the requested wire format (for example the Anthropic Messages API) returns `400 invalid_request_error` saying so.
 
 ## Receipts
 
@@ -126,7 +126,7 @@ Field meanings are in [Receipts and verification](../guide/receipts-and-verifica
 
 | Parameter | Meaning |
 | --- | --- |
-| `template` | `budget-guard`, `cheap-only`, `small-requests` or `strict`. Omit for all four. |
+| `template` | `budget-guard`, `cheap-only`, `small-requests` or `strict`, or a custom rule `custom:t<0-3>-<downgrade\|deny>-s<0-3>`. Omit for all four templates. |
 | `limit` | How many of your recent requests to replay: 1–500, default 100 |
 
 With your key, it replays **your own** history. Without one, or with no history yet, it uses a fixed 20-request sample workload. The response says which with `"source": "history"` or `"sample"`.

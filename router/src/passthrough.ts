@@ -23,6 +23,10 @@ export interface Upstream {
   /** Provider base URL, e.g. https://api.deepseek.com */
   baseURL: string;
   apiKey: string;
+  /** Responses API path; default "/responses", null if the provider has none */
+  responsesPath?: string | null;
+  /** Anthropic Messages API path; default "/anthropic/v1/messages", null if the provider has none */
+  messagesPath?: string | null;
 }
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -41,7 +45,8 @@ const ANTHROPIC_ERROR = {
 
 interface Protocol {
   id: "responses" | "messages";
-  upstreamUrl(base: string): string;
+  /** The provider's URL for this format, or undefined if it doesn't serve it */
+  upstreamUrl(up: Upstream): string | undefined;
   key(h: Headers): string | undefined;
   upstreamHeaders(apiKey: string, h: Headers): Record<string, string>;
   maxTokens(b: Json): number | undefined;
@@ -57,7 +62,7 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0
 
 export const RESPONSES: Protocol = {
   id: "responses",
-  upstreamUrl: (base) => `${base.replace(/\/$/, "")}/responses`,
+  upstreamUrl: (up) => (up.responsesPath === null ? undefined : `${up.baseURL.replace(/\/$/, "")}${up.responsesPath ?? "/responses"}`),
   key: (h) => keyFromAuthHeader(h.get("authorization") ?? undefined),
   upstreamHeaders: (apiKey) => ({ authorization: `Bearer ${apiKey}`, "content-type": "application/json" }),
   maxTokens: (b) => (typeof b.max_output_tokens === "number" ? b.max_output_tokens : undefined),
@@ -81,7 +86,7 @@ export const RESPONSES: Protocol = {
 
 export const MESSAGES: Protocol = {
   id: "messages",
-  upstreamUrl: (base) => `${base.replace(/\/$/, "")}/anthropic/v1/messages`,
+  upstreamUrl: (up) => (up.messagesPath === null ? undefined : `${up.baseURL.replace(/\/$/, "")}${up.messagesPath ?? "/anthropic/v1/messages"}`),
   // Claude Code sends the key as x-api-key (ANTHROPIC_API_KEY) or a bearer token (ANTHROPIC_AUTH_TOKEN).
   key: (h) => h.get("x-api-key") ?? keyFromAuthHeader(h.get("authorization") ?? undefined),
   upstreamHeaders: (apiKey, h) => ({
@@ -242,6 +247,11 @@ export function registerPassthrough(app: Hono, deps: AppDeps & { upstreams: Read
       log.error("no upstream configured", { requestId, provider: served.provider, api: proto.id });
       return fail(500, "upstream_error", ERR.upstream().error.message);
     }
+    const url = proto.upstreamUrl(upstream);
+    if (!url) {
+      done(400, { served: served.id });
+      return fail(400, "invalid_request_error", `Model '${served.id}' is served by ${served.provider}, which has no ${proto.id === "responses" ? "Responses" : "Anthropic Messages"} API. Use /v1/chat/completions, or a model from another provider.`);
+    }
     const upstreamBody: Json = { ...body, model: served.upstreamModel };
     proto.applyThinking(upstreamBody, served.thinking);
 
@@ -254,7 +264,7 @@ export function registerPassthrough(app: Hono, deps: AppDeps & { upstreams: Read
 
     let res: Response;
     try {
-      res = await fetchFn(proto.upstreamUrl(upstream.baseURL), {
+      res = await fetchFn(url, {
         method: "POST",
         headers: proto.upstreamHeaders(upstream.apiKey, c.req.raw.headers),
         body: JSON.stringify(upstreamBody),

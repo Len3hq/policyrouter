@@ -111,6 +111,64 @@ export const transistorsAbi = [
   { type: "function", name: "minted", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
 ] as const;
 
+export const transistorsWriteAbi = [
+  { type: "function", name: "mint", stateMutability: "payable", inputs: [{ name: "id", type: "uint256" }, { name: "amount", type: "uint256" }], outputs: [] },
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "uint256" }] },
+] as const;
+
+export const processorAbi = [
+  {
+    type: "function",
+    name: "tapeout",
+    stateMutability: "payable",
+    inputs: [
+      { name: "nl", type: "bytes" },
+      { name: "nIn", type: "uint32" },
+      { name: "nOut", type: "uint32" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  { type: "function", name: "TAPEOUT_FEE", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "nextId", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "netlist", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "bytes" }] },
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "tokenId", type: "uint256", indexed: true },
+    ],
+  },
+] as const;
+
+export const factoryAbi = [{ type: "function", name: "protocolFee", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }] as const;
+
+/** What a tape-out costs right now: transistors at the mint price, TapeOut's protocol fee per mint, and its tape-out fee. */
+export async function readTapeoutCosts() {
+  const { TAPEOUT } = await import("@policyrouter/policy");
+  const [mintPrice, protocolFee, tapeoutFee] = await Promise.all([
+    publicClient.readContract({ address: CONFIG.transistors, abi: transistorsAbi, functionName: "mintPrice" }),
+    publicClient.readContract({ address: TAPEOUT.factory, abi: factoryAbi, functionName: "protocolFee" }),
+    publicClient.readContract({ address: CONFIG.processor, abi: processorAbi, functionName: "TAPEOUT_FEE" }),
+  ]);
+  return { mintPrice, protocolFee, tapeoutFee };
+}
+
+/**
+ * The id of a circuit already on the processor with exactly this netlist, if any (ids run 1…nextId).
+ * Reusing one costs nothing: circuits are public and anyone can point an agent at any of them.
+ */
+export async function findCircuit(netlist: Hex): Promise<bigint | undefined> {
+  const last = await publicClient.readContract({ address: CONFIG.processor, abi: processorAbi, functionName: "nextId" });
+  const ids = Array.from({ length: Math.min(Number(last), 500) }, (_, i) => BigInt(i + 1));
+  const lists = await Promise.all(
+    ids.map((id) => publicClient.readContract({ address: CONFIG.processor, abi: processorAbi, functionName: "netlist", args: [id] }).catch(() => undefined)),
+  );
+  const i = lists.findIndex((n) => n?.toLowerCase() === netlist.toLowerCase());
+  return i < 0 ? undefined : ids[i];
+}
+
 export interface AgentState {
   agentId: bigint;
   owner: Address;

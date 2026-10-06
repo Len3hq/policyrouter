@@ -4,7 +4,8 @@ import { budgetGuard, cheapOnly, decodeOutput, indexToInput, outputToIndex, rece
 import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createApp } from "../../src/app.ts";
-import { loadCatalog } from "../../src/catalog.ts";
+import { loadCatalog, type Catalog } from "../../src/catalog.ts";
+import type { Upstream } from "../../src/passthrough.ts";
 import type { ChainReader, PolicyState } from "../../src/chain.ts";
 import { Store } from "../../src/db.ts";
 import { createLogger } from "../../src/log.ts";
@@ -46,7 +47,7 @@ export class FakeChain implements ChainReader {
 }
 
 export class FakeProvider implements Provider {
-  readonly name = "deepseek";
+  constructor(readonly name = "deepseek") {}
   calls: ChatParams[] = [];
   fail?: UpstreamError;
   usage = { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, prompt_cache_hit_tokens: 40, prompt_cache_miss_tokens: 60 };
@@ -84,7 +85,9 @@ export class FakeProvider implements Provider {
   };
 }
 
-export function makeApp(opts: { rateLimit?: number; price?: PriceFeed; fetchFn?: typeof fetch } = {}) {
+export function makeApp(
+  opts: { rateLimit?: number; price?: PriceFeed; fetchFn?: typeof fetch; catalog?: Catalog; providers?: Record<string, Provider>; upstreams?: Record<string, Upstream> } = {},
+) {
   const chain = new FakeChain();
   const provider = new FakeProvider();
   const store = new Store(":memory:");
@@ -92,14 +95,14 @@ export function makeApp(opts: { rateLimit?: number; price?: PriceFeed; fetchFn?:
   const account = privateKeyToAccount(ROUTER_KEY);
   const domain = receiptDomain(196, ESCROW);
   const app = createApp({
-    catalog: loadCatalog(),
+    catalog: opts.catalog ?? loadCatalog(),
     chain,
-    providers: { deepseek: provider },
+    providers: opts.providers ?? { deepseek: provider },
     signer: createReceiptSigner(account, domain),
     store,
     limiter: new RateLimiter(opts.rateLimit ?? 1000),
     price: opts.price ?? staticPriceFeed("122.09"),
-    upstreams: { deepseek: { baseURL: "https://upstream.test", apiKey: PROVIDER_SECRET } },
+    upstreams: opts.upstreams ?? { deepseek: { baseURL: "https://upstream.test", apiKey: PROVIDER_SECRET } },
     fetchFn: opts.fetchFn ?? (async () => new Response("no upstream in this test", { status: 599 })),
     log: createLogger([PROVIDER_SECRET, ROUTER_KEY], (l) => lines.push(l)),
   });

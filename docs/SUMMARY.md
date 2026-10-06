@@ -18,6 +18,7 @@
 ## API
 
 * [API reference](api/reference.md)
+* [TypeScript SDK](api/sdk.md)
 
 ## Reference
 

@@ -170,6 +170,35 @@ The router never uses a hard-coded OKB price.
 
 **Size buckets:** prompt tokens are estimated at about 4 characters per token, then `max_tokens` (or `max_completion_tokens`) is added, defaulting to 4,096. Buckets are split at 2,000, 8,000 and 32,000 tokens. The bucket used is recorded in the receipt's input bits.
 
+## Adding a provider
+
+Providers are configured in the catalog, not in code. Each entry in `endpoints` is an OpenAI-compatible provider: where it is, which environment variable holds its key, and which wire formats it serves. Each model names the endpoint that serves it.
+
+```json
+"endpoints": {
+  "deepseek": { "baseUrl": "https://api.deepseek.com", "baseUrlEnv": "DEEPSEEK_BASE_URL", "apiKeyEnv": "DEEPSEEK_API_KEY",
+                "chat": true, "responsesPath": "/responses", "messagesPath": "/anthropic/v1/messages" },
+  "acme":     { "baseUrl": "https://api.acme.example/v1", "apiKeyEnv": "ACME_API_KEY",
+                "chat": true, "responsesPath": "/responses", "messagesPath": null }
+},
+"prices": {
+  "acme-large": { "flat": { "inputCacheHit": "<USD per 1M>", "inputCacheMiss": "<USD per 1M>", "output": "<USD per 1M>" } }
+},
+"models": [
+  { "id": "premium", "tier": 2, "provider": "acme", "upstreamModel": "acme-large", "defaultForTier": true }
+]
+```
+
+- **`chat`, `responsesPath`, `messagesPath`:** which of `/v1/chat/completions`, `/v1/responses` and `/v1/messages` the provider can serve. A request in a format the serving provider lacks gets a `400` naming the provider, and the provider is never called.
+- **Prices:** `{ peak, offPeak }` with the catalog's peak hours, or `{ flat }`. Copy them from the provider's pricing page; they're what customers are charged.
+- **`thinking`:** set it on a model only for DeepSeek models. It sends DeepSeek's thinking switch. Leave it out for other providers, and nothing is overridden.
+- **Keys:** the router reads each provider's key from the variable named in `apiKeyEnv`, and **refuses to start** if a provider some model uses has no key.
+- **`CATALOG_PATH`:** points the router at a different catalog file, so you can keep a two-provider catalog alongside the default.
+
+A downgrade can move a request between providers. With premium on one provider and standard on another, Cheap Only turns a premium request into a standard one served by the other provider.
+
+The shipped catalog uses DeepSeek for all four tiers. Adding a second provider needs that provider's API key and its real prices.
+
 ## Settlement
 
 [`router/src/settler.ts`](../router/src/settler.ts) runs inside the router every `SETTLE_INTERVAL_MS` (default 5 minutes). `pnpm --filter @policyrouter/router settle` runs the same logic once, until nothing is left.
@@ -233,7 +262,7 @@ This prints the key once, stores only its hash, and prints the `cast send` comma
 
 | Suite | Command | What it covers |
 | --- | --- | --- |
-| Unit (101) | `pnpm --filter @policyrouter/router test` | Catalog, USD→OKB conversion at the live rate, the price feed (fallback order, junk, expiry, jump guard), peak hours, cache-aware pricing and size buckets; refusing charged requests with no fresh price; price source back-off and selection; batch building (trees of 1, 2 and 1,000, per-agent sums, agent cap); the settler's crash, pending, dropped-tx and conflict paths against a fake escrow; forcing the tier's thinking mode; keys; rate limit; log redaction; the policy checker (allow, downgrade, deny, and refusing on eval failure, read failure or empty output); the full HTTP gateway with fake chain and provider (auth, validation, 429, deny, downgrade, 503, 502 without leaks, streaming, receipts, models) |
+| Unit (118) | `pnpm --filter @policyrouter/router test` | Catalog, USD→OKB conversion at the live rate, the price feed (fallback order, junk, expiry, jump guard), peak hours, cache-aware pricing and size buckets; refusing charged requests with no fresh price; price source back-off and selection; batch building (trees of 1, 2 and 1,000, per-agent sums, agent cap); the settler's crash, pending, dropped-tx and conflict paths against a fake escrow; forcing the tier's thinking mode; keys; rate limit; log redaction; the policy checker (allow, downgrade, deny, and refusing on eval failure, read failure or empty output); the full HTTP gateway with fake chain and provider (auth, validation, 429, deny, downgrade, 503, 502 without leaks, streaming, receipts, models) |
 | Integration (17) | `pnpm --filter @policyrouter/router test:integration` | A real router against an anvil fork of X Layer: Phase 2 deployed on the fork, Cheap Only taped out on the live processor, the real chain reader and provider adapter, and a mock provider. Covers allow, downgrade, kill switch, cap reached, unfunded, unknown key, RPC down, streaming, receipt replay, and checking no secret is logged. Settler: balances drop by each agent's sum, the root is on chain, every proof (a denial included) verifies in `isInBatch`, an empty interval sends nothing, and crashes after commit, after send, and with the tx still in the mempool are recovered without double debits |
 
 The integration suite needs `anvil` (Foundry) and runs in CI.

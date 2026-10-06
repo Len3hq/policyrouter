@@ -119,6 +119,28 @@ describe("GET /v1/simulate", () => {
   });
 });
 
+describe("GET /v1/simulate with a custom rule", () => {
+  it("simulates a custom rule on the key's own history, matching what that rule decides", async () => {
+    const { agent, chat, simulate } = setup();
+    const key = agent(1n);
+    await chat(key, "frontier"); // tier 3
+    await chat(key, "premium"); // tier 2
+    await chat(key, "cheap", 60_000); // huge
+    // max tier premium, deny above it; nothing larger than large
+    const body = (await (await simulate(key, "?template=custom:t2-deny-s2")).json()) as SimBody;
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0]).toMatchObject({ template: "custom:t2-deny-s2", circuitId: null, allowed: 1, downgraded: 0, denied: 2 });
+    const down = (await (await simulate(key, "?template=custom:t1-downgrade-s3")).json()) as SimBody;
+    expect(down.results[0]).toMatchObject({ allowed: 1, downgraded: 2, denied: 0 });
+  });
+
+  it("rejects a malformed custom rule", async () => {
+    const { simulate } = setup();
+    const r = await simulate(null, "?template=custom:t9-maybe-s1");
+    expect(r.status).toBe(400);
+  });
+});
+
 describe("GET /v1/usage", () => {
   it("counts the key's own decisions and spend, and lists recent requests", async () => {
     const { t, agent, chat } = setup();

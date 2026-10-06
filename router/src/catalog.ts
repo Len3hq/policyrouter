@@ -15,6 +15,22 @@ export interface PriceTriple {
   output: bigint;
 }
 
+/** A provider the router forwards to. Formats it doesn't serve have no path. */
+export interface Endpoint {
+  name: string;
+  baseUrl: string;
+  /** Env var that can override baseUrl */
+  baseUrlEnv?: string;
+  /** Env var holding the provider's API key */
+  apiKeyEnv: string;
+  /** Serves OpenAI chat completions at <baseUrl>/chat/completions */
+  chat: boolean;
+  /** Path of its OpenAI Responses API, if it has one */
+  responsesPath?: string;
+  /** Path of its Anthropic Messages API, if it has one */
+  messagesPath?: string;
+}
+
 export interface CatalogModel {
   id: string;
   tier: Tier;
@@ -35,6 +51,7 @@ export interface PeakSchedule {
 
 export interface Catalog {
   models: readonly CatalogModel[];
+  endpoints: Readonly<Record<string, Endpoint>>;
   /** Markup over provider cost, in basis points */
   markupBps: number;
   peak: PeakSchedule;
@@ -50,7 +67,9 @@ export interface CatalogFile {
     markupBps: number;
     peak: { weekdaysUtc: number[]; hoursUtc: number[][] };
   };
-  providers: Record<string, { peak: UsdTriple; offPeak: UsdTriple }>;
+  endpoints?: Record<string, Omit<Endpoint, "name" | "chat" | "responsesPath" | "messagesPath"> & { chat?: boolean; responsesPath?: string | null; messagesPath?: string | null }>;
+  /** Per upstream model: peak and off-peak prices, or one flat price */
+  prices: Record<string, { peak: UsdTriple; offPeak: UsdTriple } | { flat: UsdTriple }>;
   models: {
     id: string;
     tier: number;
@@ -73,6 +92,23 @@ export function usdScaledToOkbWei(usdScaled: bigint, okbUsdE8: bigint, markupBps
 export function parseCatalog(raw: CatalogFile): Catalog {
   const { markupBps } = raw.pricing;
   if (!Number.isInteger(markupBps) || markupBps < 0) throw new Error("markupBps must be a non-negative integer");
+  // Catalogs without an endpoints section serve everything from DeepSeek.
+  const endpoints: Record<string, Endpoint> = Object.fromEntries(
+    Object.entries(raw.endpoints ?? { deepseek: { baseUrl: "https://api.deepseek.com", baseUrlEnv: "DEEPSEEK_BASE_URL", apiKeyEnv: "DEEPSEEK_API_KEY", responsesPath: "/responses", messagesPath: "/anthropic/v1/messages" } }).map(
+      ([name, e]) => [
+        name,
+        {
+          name,
+          baseUrl: e.baseUrl,
+          baseUrlEnv: e.baseUrlEnv,
+          apiKeyEnv: e.apiKeyEnv,
+          chat: e.chat ?? true,
+          responsesPath: e.responsesPath ?? undefined,
+          messagesPath: e.messagesPath ?? undefined,
+        },
+      ],
+    ),
+  );
   const triple = (t: UsdTriple): PriceTriple => ({
     inputCacheHit: parseUnits(t.inputCacheHit, 18),
     inputCacheMiss: parseUnits(t.inputCacheMiss, 18),
@@ -81,8 +117,10 @@ export function parseCatalog(raw: CatalogFile): Catalog {
 
   const models = raw.models.map((m) => {
     if (!Number.isInteger(m.tier) || m.tier < 0 || m.tier > 3) throw new Error(`model ${m.id}: tier must be 0-3`);
-    const p = raw.providers[m.upstreamModel];
+    const p = raw.prices[m.upstreamModel];
     if (!p) throw new Error(`model ${m.id}: no prices for upstream model ${m.upstreamModel}`);
+    if (!endpoints[m.provider]) throw new Error(`model ${m.id}: no endpoint "${m.provider}" in the catalog`);
+    const table = "flat" in p ? { peak: p.flat, offPeak: p.flat } : p;
     if (m.thinking !== undefined && m.thinking !== "enabled" && m.thinking !== "disabled") {
       throw new Error(`model ${m.id}: thinking must be "enabled" or "disabled"`);
     }
@@ -92,7 +130,7 @@ export function parseCatalog(raw: CatalogFile): Catalog {
       provider: m.provider,
       upstreamModel: m.upstreamModel,
       thinking: m.thinking as CatalogModel["thinking"],
-      prices: { peak: triple(p.peak), offPeak: triple(p.offPeak) },
+      prices: { peak: triple(table.peak), offPeak: triple(table.offPeak) },
       defaultForTier: m.defaultForTier ?? false,
     };
   });
@@ -110,6 +148,7 @@ export function parseCatalog(raw: CatalogFile): Catalog {
   });
   return {
     models,
+    endpoints,
     markupBps,
     peak: { weekdays: raw.pricing.peak.weekdaysUtc, hours },
     sizeBounds: [b[0]!, b[1]!, b[2]!],
@@ -117,7 +156,27 @@ export function parseCatalog(raw: CatalogFile): Catalog {
   };
 }
 
-export function loadCatalog(path = new URL("../catalog.json", import.meta.url)): Catalog {
+export interface ResolvedEndpoint extends Endpoint {
+  apiKey: string;
+}
+
+/**
+ * The endpoints the catalog's models use, with base URLs and keys from the environment. Throws if a
+ * used endpoint has no key, so a misconfigured router fails at startup rather than on a request.
+ */
+export function resolveEndpoints(c: Catalog, env: Record<string, string | undefined>): Record<string, ResolvedEndpoint> {
+  const used = new Set(c.models.map((m) => m.provider));
+  const out: Record<string, ResolvedEndpoint> = {};
+  for (const name of used) {
+    const e = c.endpoints[name]!;
+    const apiKey = env[e.apiKeyEnv];
+    if (!apiKey) throw new Error(`provider "${name}" needs ${e.apiKeyEnv} (models: ${c.models.filter((m) => m.provider === name).map((m) => m.id).join(", ")})`);
+    out[name] = { ...e, baseUrl: (e.baseUrlEnv && env[e.baseUrlEnv]) || e.baseUrl, apiKey };
+  }
+  return out;
+}
+
+export function loadCatalog(path: string | URL = new URL("../catalog.json", import.meta.url)): Catalog {
   return parseCatalog(JSON.parse(readFileSync(path, "utf8")) as CatalogFile);
 }
 

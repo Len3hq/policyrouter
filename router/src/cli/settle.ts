@@ -13,7 +13,8 @@ const envFile = new URL("../../../.env", import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const cfg = loadConfig();
-const log = createLogger([cfg.deepseekApiKey, cfg.routerPrivateKey]);
+// the settler never calls a provider; only the router key needs keeping out of the logs
+const log = createLogger([cfg.routerPrivateKey]);
 const account = privateKeyToAccount(cfg.routerPrivateKey);
 const store = new Store(cfg.databasePath);
 const settler = new Settler(store, createEscrowWriter({ rpcUrl: cfg.rpcUrl, escrow: cfg.escrow, account, chainId: cfg.chainId }), { log });

@@ -5,6 +5,7 @@ import { escrowAbi, okb, readAgent, registryAbi, type AgentState } from "../lib/
 import { CONFIG } from "../lib/config.ts";
 import type { Wallet } from "../lib/wallet.ts";
 import { ErrorNote, errorText } from "./common.tsx";
+import { PolicyBuilder } from "./PolicyBuilder.tsx";
 import { PolicyCards, templateForCircuit } from "./PolicyCards.tsx";
 import { Quickstart } from "./Quickstart.tsx";
 
@@ -66,7 +67,7 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
       <section className="card">
         <header className="row between">
           <h2>
-            Agent #{agentId.toString()} <span className="muted">· {policy?.name ?? `circuit ${agent.circuitId}`}</span>
+            Agent #{agentId.toString()} <span className="muted">· {policy?.name ?? `custom policy (circuit #${agent.circuitId})`}</span>
           </h2>
           <span className={`pill ${status === "Active" ? "pill-ok" : "pill-bad"}`} data-testid="agent-status">
             {status}
@@ -249,6 +250,16 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
           sim={sim}
           busy={!!busy}
           onUse={(circuitId) => act("policy", () => wallet.write({ address: CONFIG.registry, abi: registryAbi, functionName: "setCircuit", args: [agentId, circuitId] }))}
+        />
+        <PolicyBuilder
+          agentId={agentId}
+          apiKey={key}
+          currentCircuit={agent.circuitId}
+          wallet={wallet}
+          onDone={() => {
+            void refresh();
+            onChanged?.();
+          }}
         />
       </section>
     </div>

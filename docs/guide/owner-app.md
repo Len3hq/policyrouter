@@ -66,6 +66,10 @@ An agent with no history is simulated on a sample workload of 20 typical request
 
 **Use this policy** sends one transaction (`setCircuit`). It doesn't edit any circuit. It points your agent at a different one, and that change is an on-chain event anyone can see.
 
+## Building a custom policy
+
+Below the four templates is **Build a custom policy**: pick the highest tier served, whether requests above it are downgraded or denied, and the largest request allowed. The app shows the rule in words, a grid of what it does to each tier and size, a simulation on your agent's requests, and the cost. The button then either reuses an existing circuit (a template, or one someone already taped out) or tapes out a new one for you. See [custom policies](policy-circuits.md#custom-policies).
+
 ## Rotating a key
 
 A lost or leaked key can be replaced without touching your balance or settings. Generate a new key and its hash, then register the hash:

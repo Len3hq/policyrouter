@@ -7,3 +7,4 @@ export * from "./merkle.ts";
 export * from "./receipt.ts";
 export * from "./simulate.ts";
 export * from "./verify.ts";
+export * from "./custom.ts";

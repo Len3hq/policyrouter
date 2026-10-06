@@ -1,0 +1,24 @@
+{
+  "name": "@policyrouter/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript client for PolicyRouter: OpenAI-compatible chat with signed receipts, typed policy denials, and on-chain receipt verification.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@policyrouter/policy": "workspace:*",
+    "openai": "^5.20.0",
+    "viem": "^2.37.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

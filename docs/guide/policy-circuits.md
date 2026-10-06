@@ -25,6 +25,30 @@ Each circuit has been called with all 64 possible inputs on mainnet, and every a
 
 Not sure? The app's [policy simulation](owner-app.md#choosing-a-policy) shows what each would have done to your agent's last requests.
 
+## Custom policies
+
+If none of the four fits, build your own in the app (**Build a custom policy**, under the agent's policies). Three settings:
+
+| Setting | Choices |
+| --- | --- |
+| **Highest tier served** | cheap, standard, premium, frontier |
+| **A request above it is** | downgraded to that tier, or denied |
+| **Largest request allowed** | small, medium, large, huge (bigger requests are denied) |
+
+**Budget Guard is always included.** A custom policy can never serve a request while the kill switch is on or the budget is spent; the builder doesn't offer a way to turn that off.
+
+That gives 28 distinct rules, and the four templates are among them. The app turns your rule into a NAND circuit (6 to 18 gates), checks it against the rule on all 64 inputs before offering it, and shows a grid of what it does to each tier and size, a simulation on your agent's own recent requests, and the tape-out cost.
+
+| If your rule… | The app… |
+| --- | --- |
+| equals a template | points your agent at the template's circuit. Nothing to tape out |
+| was already taped out by anyone | points your agent at that circuit. Circuits are public, so reuse is free |
+| is new | mints the transistors (or uses ones you hold), tapes out the circuit, and switches your agent to it: three transactions, the new circuit owned by you |
+
+A tape-out costs one transistor per gate (0.0001 OKB each) plus TapeOut's fees (0.00066 OKB per mint and 0.0013 OKB per tape-out), about 0.002–0.004 OKB in all. The transistor money goes to PolicyTreasury ([Economics](../economics.md)).
+
+From the API, a custom rule is written `custom:t<maxTier>-<downgrade|deny>-s<maxSize>`, for example `custom:t2-downgrade-s2` (premium at most, downgrade above it, nothing larger than large). [`GET /v1/simulate`](../api/reference.md#simulation) accepts it.
+
 ## The circuit's inputs
 
 The router builds six bits for every request:

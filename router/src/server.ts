@@ -5,7 +5,7 @@ import { serve } from "@hono/node-server";
 import { privateKeyToAccount } from "viem/accounts";
 import { receiptDomain } from "@policyrouter/policy";
 import { createApp } from "./app.ts";
-import { loadCatalog } from "./catalog.ts";
+import { loadCatalog, resolveEndpoints } from "./catalog.ts";
 import { createChainReader } from "./chain.ts";
 import { loadConfig } from "./config.ts";
 import { Store } from "./db.ts";
@@ -20,7 +20,9 @@ const envFile = new URL("../../.env", import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const cfg = loadConfig();
-const log = createLogger([cfg.deepseekApiKey, cfg.routerPrivateKey]);
+const catalog = loadCatalog(cfg.catalogPath);
+const endpoints = resolveEndpoints(catalog, process.env); // throws if a provider's key is missing
+const log = createLogger([...Object.values(endpoints).map((e) => e.apiKey), cfg.routerPrivateKey]);
 const account = privateKeyToAccount(cfg.routerPrivateKey);
 
 // Live OKB/USD price. Wait for the first quote so the router doesn't start by refusing requests.
@@ -36,7 +38,7 @@ price.start();
 const store = new Store(cfg.databasePath);
 
 const app = createApp({
-  catalog: loadCatalog(),
+  catalog,
   chain: createChainReader({
     rpcUrl: cfg.rpcUrl,
     processor: cfg.processor,
@@ -45,17 +47,22 @@ const app = createApp({
     blockCacheMs: cfg.blockCacheMs,
     timeoutMs: cfg.rpcTimeoutMs,
   }),
-  providers: {
-    deepseek: createOpenAICompatibleProvider({ name: "deepseek", baseURL: cfg.deepseekBaseUrl, apiKey: cfg.deepseekApiKey }),
-  },
+  // one adapter per provider in the catalog: chat completions through the OpenAI SDK…
+  providers: Object.fromEntries(
+    Object.values(endpoints)
+      .filter((e) => e.chat)
+      .map((e) => [e.name, createOpenAICompatibleProvider({ name: e.name, baseURL: e.baseUrl, apiKey: e.apiKey })]),
+  ),
   signer: createReceiptSigner(account, receiptDomain(cfg.chainId, cfg.escrow)),
   store,
   limiter: new RateLimiter(cfg.rateLimitPerMinute),
   price,
   log,
   corsOrigins: cfg.corsOrigins,
-  // /v1/responses (Codex) and /v1/messages (Claude Code) are forwarded to the provider's own endpoints for those formats
-  upstreams: { deepseek: { baseURL: cfg.deepseekBaseUrl, apiKey: cfg.deepseekApiKey } },
+  // …and /v1/responses (Codex) and /v1/messages (Claude Code) forwarded to each provider's own endpoints for those formats
+  upstreams: Object.fromEntries(
+    Object.values(endpoints).map((e) => [e.name, { baseURL: e.baseUrl, apiKey: e.apiKey, responsesPath: e.responsesPath ?? null, messagesPath: e.messagesPath ?? null }]),
+  ),
 });
 
 // Settles receipts on chain every SETTLE_INTERVAL_MS (0 = off; run `pnpm settle` instead).
@@ -71,7 +78,13 @@ if (cfg.settleIntervalMs > 0) {
 }
 
 const server = serve({ fetch: app.fetch, port: cfg.port }, (info) => {
-  log.info("PolicyRouter listening", { port: info.port, router: account.address, chainId: cfg.chainId, escrow: cfg.escrow });
+  log.info("PolicyRouter listening", {
+    port: info.port,
+    router: account.address,
+    chainId: cfg.chainId,
+    escrow: cfg.escrow,
+    providers: Object.fromEntries(catalog.models.map((m) => [m.id, m.provider])),
+  });
 });
 
 // Clean shutdown: stop timers, finish in-flight requests, close the database.

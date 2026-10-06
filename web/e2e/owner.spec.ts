@@ -94,6 +94,54 @@ test.describe.serial("owner flow", () => {
     await page.screenshot({ path: "test-results/screens/dashboard.png", fullPage: true });
   });
 
+  test("custom policy: a rule equal to a template reuses its circuit; a new rule is taped out, used, and enforced", async ({ page }) => {
+    await connect(page);
+    await page.getByTestId(`agent-${agentId}`).click();
+    const builder = page.getByTestId("builder");
+
+    // standard + downgrade + large = Strict: no tape-out, just point at circuit 4
+    await builder.getByTestId("b-tier-standard").check();
+    await builder.getByTestId("b-over-downgrade").check();
+    await builder.getByTestId("b-size-large").check();
+    await expect(builder.getByTestId("builder-cost")).toContainText("This is Strict, already on chain as circuit #4");
+    await expect(builder.getByTestId("builder-apply")).toHaveText("Use circuit #4");
+
+    // premium, downgrade above it, nothing larger than large: a new circuit
+    await builder.getByTestId("b-tier-premium").check();
+    await expect(builder.getByTestId("builder-rule")).toHaveText(
+      "Budget Guard, and any tier above premium is downgraded to premium, and requests larger than large are denied.",
+    );
+    await expect(builder.getByTestId("builder-grid")).toContainText("→ premium");
+    await expect(builder.getByTestId("builder-cost")).toContainText("14 NAND gates");
+    await expect(builder.getByTestId("builder-apply")).toHaveText("Tape out and use this policy");
+    await builder.getByTestId("builder-apply").click();
+
+    // three transactions later the agent is on the new circuit
+    await expect(page.getByRole("heading", { level: 2 }).filter({ hasText: "Agent #" })).toContainText("custom policy (circuit #", { timeout: 90_000 });
+    const heading = await page.getByRole("heading", { level: 2 }).filter({ hasText: "Agent #" }).textContent();
+    const circuitId = Number(/circuit #(\d+)/.exec(heading!)![1]);
+    expect(circuitId).toBeGreaterThan(4);
+
+    // and the router enforces it: frontier is served as premium, a huge request is denied
+    const served = await agentRequest(apiKey, "frontier");
+    expect(served.status).toBe(200);
+    expect(served.body.model).toBe("premium");
+    const res = await fetch(`${state().routerUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "cheap", max_tokens: 60_000, messages: [{ role: "user", content: "hi" }] }),
+    });
+    expect(res.status).toBe(403);
+
+    // choosing the same rule again finds the circuit just taped out instead of taping out a second one
+    await page.reload();
+    await page.getByTestId("connect").click();
+    await page.getByTestId(`agent-${agentId}`).click();
+    await page.getByTestId("b-tier-premium").check();
+    await page.getByTestId("b-size-large").check();
+    await expect(page.getByTestId("builder-apply")).toHaveText("Already this agent's policy");
+  });
+
   test("kill switch on the dashboard → requests are refused (403) → off → served again", async ({ page }) => {
     await connect(page);
     await page.getByTestId(`agent-${agentId}`).click();

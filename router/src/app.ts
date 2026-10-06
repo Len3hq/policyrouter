@@ -11,6 +11,8 @@ import {
   POLICYROUTER,
   SAMPLE_WORKLOAD,
   TEMPLATES,
+  parseRuleId,
+  ruleTemplate,
   receiptToJson,
   simRequestFromReceipt,
   simulatePolicy,
@@ -130,10 +132,18 @@ export function createApp(deps: AppDeps): Hono {
     const keyHash = key ? hashKey(key) : undefined;
     if (!limiter.take(keyHash ?? `anon:${c.req.header("x-forwarded-for") ?? "local"}`)) return fail(c, 429, ERR.rateLimited());
 
+    // a template id, or a custom rule: custom:t<maxTier>-<downgrade|deny>-s<maxSize>
     const only = c.req.query("template");
-    const templates = only ? TEMPLATES.filter((t) => t.id === only) : TEMPLATES;
+    let templates = only ? TEMPLATES.filter((t) => t.id === only) : TEMPLATES;
+    if (only?.startsWith("custom:")) {
+      try {
+        templates = [ruleTemplate(parseRuleId(only))];
+      } catch {
+        return fail(c, 400, ERR.badRequest(`'${only}' isn't a custom rule. Use custom:t<0-3>-<downgrade|deny>-s<0-3>.`));
+      }
+    }
     if (templates.length === 0) {
-      return fail(c, 400, ERR.badRequest(`Unknown template '${only}'. Known: ${TEMPLATES.map((t) => t.id).join(", ")}.`));
+      return fail(c, 400, ERR.badRequest(`Unknown template '${only}'. Known: ${TEMPLATES.map((t) => t.id).join(", ")}, or custom:t<0-3>-<downgrade|deny>-s<0-3>.`));
     }
     const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 100) || 100, 1), 500);
 
@@ -297,6 +307,10 @@ export function createApp(deps: AppDeps): Hono {
     const served = servedModel(catalog, requested, decision.routeTier as Tier);
     const provider = providers[served.provider];
     if (!provider) {
+      if (deps.upstreams?.[served.provider]) {
+        // the provider exists but has no chat completions endpoint
+        return fail(c, 400, ERR.badRequest(`Model '${served.id}' is served by ${served.provider}, which has no chat completions API. Use /v1/responses or /v1/messages.`));
+      }
       log.error("no provider configured", { requestId, provider: served.provider });
       return fail(c, 500, ERR.upstream());
     }

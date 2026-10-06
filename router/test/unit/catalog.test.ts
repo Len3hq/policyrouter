@@ -23,7 +23,8 @@ const OKB_100 = 10_000_000_000n; // $100.00000000
 /** A small catalog with round numbers for hand-worked checks (no markup; tests use OKB = $100). */
 const simple: CatalogFile = {
   pricing: { markupBps: 0, peak: { weekdaysUtc: [1, 2, 3, 4, 5], hoursUtc: [[1, 4], [6, 10]] } },
-  providers: {
+  endpoints: { p: { baseUrl: "https://p.test", apiKeyEnv: "P_KEY" } },
+  prices: {
     up: {
       peak: { inputCacheHit: "0.01", inputCacheMiss: "0.3", output: "1.2" },
       offPeak: { inputCacheHit: "0.005", inputCacheMiss: "0.15", output: "0.6" },

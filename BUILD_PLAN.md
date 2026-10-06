@@ -373,19 +373,25 @@ The Verify page works with no wallet, using only read-only RPC calls.
 
 ## Phase 8 — Extras
 
-Do these in order.
+Built and tested.
 
-**8a. Custom policy builder**
-- Form with checkboxes for rules (max tier, deny huge requests, and so on) → generated truth table → simulation against recent requests → transistor cost → guided tape-out on our processor → `setCircuit`
-- Tests: the generated truth table matches the chosen rules for all 64 rows; the property tests from Phase 5 pass for every combination of checkboxes; E2E on the fork takes a custom policy from form to a served request
+**8a. Custom policy builder** ✅
+- [x] Three settings (highest tier served; above it downgrade or deny; largest size allowed), with Budget Guard always included: 28 distinct rules, the four templates among them (`packages/policy/src/custom.ts`)
+- [x] A synthesizer turns any rule into a NAND netlist (constant folding, shared negations), 6–18 gates. Budget Guard and Cheap Only come out byte-identical to the hand-wired circuits. Every netlist is checked against its rule on all 64 inputs before it's returned
+- [x] Web builder: rule in words, an outcome grid, a simulation on the agent's own requests (`/v1/simulate?template=custom:…`), and the live tape-out cost. **Reuses** a template's circuit, or any identical circuit already taped out; otherwise mints (or uses transistors the owner holds), tapes out, and calls `setCircuit`
+- Tests: [x] every rule's circuit equals the rule on all 64 inputs; [x] the safety properties hold for every rule (never allows when killed or over budget; never routes above the request or the max tier; denials report tier 0; oversized requests denied); [x] rules equal to templates are recognised and are no bigger than them; [x] router simulates custom rules; [x] **E2E on the fork:** a rule equal to Strict reuses circuit #4; a new rule (premium max, downgrade, large max) is taped out from the browser in three transactions, the agent switches to it, and the router serves frontier as premium and denies a huge request; choosing it again finds the circuit just taped out
 
-**8b. Second provider adapter**
-- One more OpenAI-compatible provider for the higher tiers
-- Tests: the same adapter contract tests as DeepSeek (non-streaming, streaming, usage, provider errors mapped to OpenAI-shaped errors); the router picks the correct provider for each tier
+**8b. Second provider** ✅ (mechanism; the shipped catalog stays DeepSeek-only)
+- [x] Providers are catalog `endpoints` (base URL, key variable, which wire formats and paths). The server builds one adapter per provider, refuses to start if a used provider has no key, and `CATALOG_PATH` selects a catalog. Prices can be flat or peak/off-peak
+- [x] A request in a format the serving provider lacks gets a clear `400`, and no provider is called
+- Tests: [x] the adapter contract suite against two real HTTP mock providers, DeepSeek-style and OpenAI-style usage (non-streaming, streaming with usage requested, provider key sent, errors mapped to `UpstreamError` without the provider's message); [x] with a two-provider catalog each tier reaches its own provider, a downgrade moves a request to the other provider, flat pricing, Responses forwarded to the serving provider's path; [x] key resolution and startup refusal
+- [ ] **Turning on a real second provider** needs a decision and a key: which provider for which tiers, its API key, and its current prices in the catalog
 
-**8c. Thin TypeScript SDK** (`packages/sdk`)
-- `new PolicyRouter({ apiKey }).chat({ model, messages })` wrapping the OpenAI client, plus a `verifyReceipt()` helper that reuses the Verify page's checks
-- Tests: it calls the right base URL; a deny comes back as a typed `PolicyDeniedError` carrying the receipt; `verifyReceipt` passes and fails on the same vectors as Phase 7
+**8c. Thin TypeScript SDK** ✅ (`packages/sdk`, [docs/api/sdk.md](docs/api/sdk.md))
+- [x] `new PolicyRouter({ apiKey, baseURL }).chat(...)` wrapping the OpenAI client; `chatStream()` returns the receipt at the end; `receipt()`, `usage()`, `simulate()`; `verify()` and a standalone `verifyReceipt()` that reuse the Verify page's checks
+- Tests (17, against the real router app in-process): [x] it calls the right base URL; [x] a deny comes back as a typed `PolicyDeniedError` carrying the receipt (also when streaming); [x] other errors are `PolicyRouterError`s with the router's code; [x] `verifyReceipt` passes and fails on the Phase 7 vectors: valid allow and deny, changed outputBits, changed costWei, re-signed, wrong proof, unsettled
+- [x] Live on mainnet: the SDK got an answer from DeepSeek through the router, and `verify()` returned pending (fresh) and verified 4/4 (the Phase 3 receipt in batch 0)
+- [ ] Publishing to npm would need a build step for `@policyrouter/sdk` and `@policyrouter/policy`
 
 ---
 

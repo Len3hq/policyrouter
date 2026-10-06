@@ -1,5 +1,5 @@
 {
-  "note": "Public model names, the tier the policy circuit sees, and where each is served. Provider prices are copied from https://api-docs.deepseek.com/quick_start/pricing (checked 2026-10-02) in USD per 1M tokens. For every request the router converts them to OKB at the live OKB/USD price (OKX index, falling back to CoinGecko and CoinPaprika) plus pricing.markupBps, and records the rate in the receipt. defaultForTier picks the model served when the circuit routes a request to a lower tier.",
+  "note": "Public model names, the tier the policy circuit sees, and which provider endpoint serves each. Prices are in USD per 1M tokens: { peak, offPeak } (peak hours in pricing.peak) or { flat }. DeepSeek's are copied from https://api-docs.deepseek.com/quick_start/pricing (checked 2026-10-02). For every request the router converts them to OKB at the live OKB/USD price plus pricing.markupBps, and records the rate in the receipt. defaultForTier picks the model served when the circuit routes a request to a lower tier. To add a provider, see docs/router.md#adding-a-provider.",
   "pricing": {
     "currency": "USD",
     "markupBps": 1000,
@@ -25,7 +25,18 @@
       ]
     }
   },
-  "providers": {
+  "endpoints": {
+    "deepseek": {
+      "note": "OpenAI-compatible chat, plus DeepSeek's own Responses and Anthropic Messages endpoints.",
+      "baseUrl": "https://api.deepseek.com",
+      "baseUrlEnv": "DEEPSEEK_BASE_URL",
+      "apiKeyEnv": "DEEPSEEK_API_KEY",
+      "chat": true,
+      "responsesPath": "/responses",
+      "messagesPath": "/anthropic/v1/messages"
+    }
+  },
+  "prices": {
     "deepseek-flash": {
       "peak": {
         "inputCacheHit": "0.006",
