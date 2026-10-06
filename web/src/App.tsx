@@ -9,8 +9,49 @@ import { KeyReveal } from "./components/KeyReveal.tsx";
 import { PolicyCards, templateForCircuit } from "./components/PolicyCards.tsx";
 import { Quickstart } from "./components/Quickstart.tsx";
 import { TransistorFacts } from "./components/TransistorFacts.tsx";
+import { DocsPage } from "./components/DocsPage.tsx";
+import { VerifyPage } from "./components/VerifyPage.tsx";
 
+const route = () => location.pathname.replace(/\/$/, "");
+
+/** Three areas: the owner app at /, the public Verify page at /verify (no wallet), and the docs at /docs. */
 export function App() {
+  const r = route();
+  if (r === "/verify") return <Shell active="verify"><VerifyPage /></Shell>;
+  if (r === "/docs" || r.startsWith("/docs/")) return <Shell active="docs" wide><DocsPage /></Shell>;
+  return <OwnerApp />;
+}
+
+function Shell({ children, active, right, wide }: { children: React.ReactNode; active?: "verify" | "docs"; right?: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className="app">
+      <header className="topbar">
+        <a className="brand" href="/">
+          <span className="logo" aria-hidden>
+            ⧉
+          </span>
+          <div>
+            <strong>PolicyRouter</strong>
+            <span className="muted small">The immutable firewall for AI agents</span>
+          </div>
+        </a>
+        <nav className="row">
+          <a className={`navlink ${active === "docs" ? "navlink-on" : ""}`} href="/docs" data-testid="nav-docs">
+            Docs
+          </a>
+          <a className={`navlink ${active === "verify" ? "navlink-on" : ""}`} href="/verify" data-testid="nav-verify">
+            Verify a receipt
+          </a>
+          {right}
+        </nav>
+      </header>
+      <main className={wide ? "main-wide" : undefined}>{children}</main>
+      <TransistorFacts />
+    </div>
+  );
+}
+
+function OwnerApp() {
   const wallet = useWallet();
   const [agents, setAgents] = useState<AgentState[]>();
   const [selected, setSelected] = useState<bigint>();
@@ -40,18 +81,9 @@ export function App() {
   }, []);
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="logo" aria-hidden>
-            ⧉
-          </span>
-          <div>
-            <strong>PolicyRouter</strong>
-            <span className="muted small">The immutable firewall for AI agents</span>
-          </div>
-        </div>
-        {wallet.address ? (
+    <Shell
+      right={
+        wallet.address ? (
           <span className="pill mono" data-testid="account">
             {short(wallet.address)}
           </span>
@@ -59,10 +91,10 @@ export function App() {
           <button type="button" className="btn btn-primary" data-testid="connect" onClick={() => void wallet.connect()}>
             Connect wallet
           </button>
-        )}
-      </header>
-
-      <main>
+        )
+      }
+    >
+      <>
         <ErrorNote error={wallet.error ?? error} />
 
         {wallet.wrongNetwork && (
@@ -156,8 +188,7 @@ export function App() {
             </div>
           </div>
         )}
-      </main>
-      <TransistorFacts />
-    </div>
+      </>
+    </Shell>
   );
 }

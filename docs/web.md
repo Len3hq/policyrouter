@@ -14,6 +14,31 @@ The owner's app: connect a wallet, create and fund an agent, choose its policy (
 | Policy | The four templates, each with its rule, circuit id, gate count, a link to its 64/64 mainnet proof, and a **simulation** on this agent's own recent requests. **Use this policy** calls `setCircuit` |
 | Footer | Transistor facts read live from chain: supply cap, price, minted, remaining |
 
+## The Verify page
+
+`/verify?id=<requestId>` fetches a receipt from the router, or you can paste one. Either way the page checks it against X Layer with **read-only calls: no wallet, and no trust in the router**. The checks come from [`packages/policy/src/verify.ts`](../packages/policy/src/verify.ts), the same code as `verify-receipt` in the router.
+
+| Check | Passes when |
+| --- | --- |
+| **Signature** | The receipt's EIP-712 signature recovers to `CreditEscrow.router()`, the only address allowed to settle, fixed on chain |
+| **Chain inputs** | At the receipt's block, `PolicyRegistry.policyOf(keyHash)` gives the receipt's agent and circuit, and the kill switch and `budget_ok` bits the router fed the circuit match the chain. A router can't claim a budget was fine when it wasn't. Tier and size come from the request itself, which only the agent and router saw |
+| **Policy decision** | `eval(circuitId, inputBits)` on PolicyRouter's processor at the receipt's block returns the receipt's `outputBits`. A receipt naming another processor fails |
+| **Settlement** | `CreditEscrow.isInBatch(batchId, receiptHash, proof)` is true. Shown as **pending**, not failed, until the receipt's batch is settled |
+
+The page shows a green **Verified**, an amber **pending** (nothing failed, but something isn't settled or checkable yet), or a red **Mismatch** naming the failed checks. Every check has a "Re-run this yourself" panel with the exact `cast call` (at the receipt's block) and the raw `eth_call` JSON, with links to OKLink.
+
+If an RPC has no state for an old block, the policy check falls back to the latest block (circuits can never change, so the answer is the same), and the chain-inputs check reports *unavailable* rather than failing. `rpc.xlayer.tech` served state from about 286,000 blocks back when this was built.
+
+Each request in the dashboard's request list links to its Verify page.
+
+**Hosting note:** `/verify` is a client-side route. A static host must serve `index.html` for `/verify` (an SPA fallback); `vite preview` already does.
+
+## The docs site
+
+The documentation is served by the app at **`/docs`** as a GitBook-style site: grouped navigation, search, an "on this page" outline, previous and next links, and copy buttons on code blocks. It renders the markdown files in [`docs/`](README.md) directly, using `SUMMARY.md` as the table of contents, so the same files can also be published to GitBook (see [`.gitbook.yaml`](../.gitbook.yaml)). The code is in `web/src/docs/` and `web/src/components/DocsPage.tsx`.
+
+Links between pages work both on GitHub and on the site: relative `.md` links become `/docs/...` routes, and links to files outside `docs/` become GitHub links. Like `/verify`, `/docs/...` is a client-side route, so a static host needs an SPA fallback to `index.html`.
+
 ## Where the key lives
 
 - The key is generated **in the browser** (`crypto.getRandomValues`). Only `keccak256(key)` goes on chain.
@@ -40,7 +65,9 @@ The router must allow the app's origin. It does by default (`CORS_ORIGINS` unset
 
 | Suite | Command | Covers |
 | --- | --- | --- |
+| Verifier (14, in `packages/policy`) | `pnpm --filter @policyrouter/policy test` | Each check returns pass or fail with a reason for fixed inputs: a valid allow or deny receipt; changed `outputBits` (policy fails); changed `costWei` (signature fails); re-signed by another key (signature fails); wrong proof (settlement fails); unsettled (pending); a router lying about `budget_ok` or the circuit (inputs fail); a foreign processor; no historical state (latest-block fallback); exact `cast` and `eth_call` output; parsing pasted input |
+| Docs (13, in the component suite) | `pnpm --filter @policyrouter/web test` | SUMMARY parsing, link rewriting, heading ids, search; **every markdown file is in the navigation; no broken internal link or anchor; every code fence closed**; the contract addresses in the docs match the deployment record; navigation, search and copy buttons in the page |
 | Component (11) | `pnpm --filter @policyrouter/web test` | Simulation panel (counts, savings, sample-workload notice, singular wording); key shown once and hidden after confirming; copy buttons copy exactly the base URL, the key and the two export lines; Codex and Claude Code snippets; browser-generated keys hash exactly as the router does |
-| E2E (5) | `pnpm --filter @policyrouter/web test:e2e` | Against an anvil fork of mainnet (real contracts and circuits), the real router process, a mock provider and the Vite dev server, with the test wallet: the full owner flow (connect, create, save key, switch to Cheap Only, a downgraded request counted on the dashboard); kill switch on (403) and off (200); lowering the cap below settled spend (denied, deny count +1); a pasted key unlocking usage (a wrong key is refused); wrong network (switch prompt); the landing page |
+| E2E (19) | `pnpm --filter @policyrouter/web test:e2e` | Against an anvil fork of mainnet (real contracts and circuits), the real router process, a mock provider and the Vite dev server, with the test wallet: the full owner flow (connect, create, save key, switch to Cheap Only, a downgraded request counted on the dashboard); kill switch on (403) and off (200); lowering the cap below settled spend (denied, deny count +1); a pasted key unlocking usage (a wrong key is refused); wrong network (switch prompt); the landing page. **Verify page, with no wallet,** on receipts from the real router, settled by the real settler on a fork: an allow and a deny receipt are green on all four checks; changed `outputBits` fails the policy check; changed `costWei` fails the signature; a receipt re-signed by another key fails the signature; a wrong proof fails settlement; an unsettled receipt is pending; a bad id is explained. **Docs**, in a real browser: navigation without a reload, deep links with anchors, search, links to Verify and to GitHub, and the phone menu with no sideways overflow |
 
-The E2E harness sets every router variable explicitly, so nothing from the repo's `.env` is used, and it never touches mainnet.
+The E2E harness sets every router variable explicitly, so nothing from the repo's `.env` is used, and it never touches mainnet. It deploys its own PolicyRegistry and CreditEscrow on the fork (bound to the live processor and circuits) with the test router as `CreditEscrow.router`, so receipts verify and the real settler can settle.

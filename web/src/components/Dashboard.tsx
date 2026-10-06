@@ -180,6 +180,34 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
                 <dd data-testid="usage-denied">{usage.denied}</dd>
               </div>
             </dl>
+            {usage.recent.length > 0 && (
+              <table className="recent" data-testid="recent">
+                <thead>
+                  <tr>
+                    <th>When (UTC)</th>
+                    <th>Request</th>
+                    <th>Cost (OKB)</th>
+                    <th>Receipt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usage.recent.slice(0, 8).map((r) => (
+                    <tr key={r.requestId}>
+                      <td>{new Date(Number(r.timestamp) * 1000).toISOString().slice(5, 19).replace("T", " ")}</td>
+                      <td>
+                        {!r.allowed ? `${r.modelRequested}: denied` : r.downgraded ? `${r.modelRequested} → ${r.modelServed}` : r.modelServed}
+                      </td>
+                      <td className="mono">{okb(BigInt(r.costWei), 8)}</td>
+                      <td>
+                        <a href={`/verify?id=${r.requestId}`} data-testid="verify-link">
+                          verify
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             <p className="muted small">
               {usage.requests} {usage.requests === 1 ? "request" : "requests"} · {okb(BigInt(usage.spentWei), 8)} OKB metered · {okb(BigInt(usage.unsettledWei), 8)} OKB not settled yet
             </p>

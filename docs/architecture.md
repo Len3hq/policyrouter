@@ -35,7 +35,7 @@ flowchart TB
 | Settler (Merkle roots) | ✅ Built, tested (crash recovery on a fork), first batch settled on mainnet | [router.md](router.md#settlement) |
 | Other templates + policy simulation | ✅ Cheap Only, Small Requests and Strict live (circuits 2–4, 64/64 each); `GET /v1/simulate` built and tested | [policies.md](policies.md) |
 | Web app | ✅ Built and tested end to end on a fork (Playwright); not hosted yet | [web.md](web.md) |
-| Verify page | Planned (Phase 7) | — |
+| Verify page | ✅ Built; verified real mainnet receipts with no wallet (desktop and phone); 8 E2E tamper and pending tests on a fork | [web.md](web.md#the-verify-page) |
 
 ## One request, start to finish
 

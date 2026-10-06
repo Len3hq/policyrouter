@@ -337,32 +337,37 @@ Router (passthrough): 14 more unit tests (forwarding, thinking enforcement, usag
 
 ## Phase 7 — Verify page
 
-The Verify page must work with no wallet, using only read-only RPC calls.
+Built and tested; verified real mainnet receipts with no wallet. Reference: [docs/web.md#the-verify-page](docs/web.md#the-verify-page).
+
+The Verify page works with no wallet, using only read-only RPC calls.
 
 **Tasks**
 
-1. Paste a receipt, or open `/verify?id=…`, which fetches it from the router
-2. Run three checks and show each one with the exact call made:
-   - **Signature:** EIP-712 recovery equals the published router address
-   - **Policy:** `eval(circuitId, inputBits)` at `blockNumber` equals `outputBits`
-   - **Settlement:** the Merkle proof verifies against `rootOf(batchId)`. If the batch is not settled yet, show "pending"
-3. Show a green match or a red mismatch, naming the check that failed
-4. Show a "re-run this yourself" block with the raw `eth_call` and a link to the block explorer
+1. [x] Paste a receipt (a `/v1/receipts` response, a completion with `policyrouter_receipt`, or a bare receipt), or open `/verify?id=…`, which fetches it from the router
+2. [x] Run the checks and show each with the exact calls made. The checks live in `packages/policy/src/verify.ts`, which the router's `verify-receipt` CLI also uses:
+   - **Signature:** EIP-712 recovery equals `CreditEscrow.router()`, the router fixed on chain
+   - **Chain inputs** *(added)*: agent, circuit, kill switch and `budget_ok` at the receipt's block match the bits the router fed the circuit. This closes the "router lies about inputs" gap for the two flags the chain knows
+   - **Policy:** `eval(circuitId, inputBits)` at `blockNumber` equals `outputBits`; the processor must be PolicyRouter's
+   - **Settlement:** `CreditEscrow.isInBatch(batchId, receiptHash, proof)`; "pending" if the batch is not settled yet
+3. [x] A green "Verified", an amber "pending", or a red "Mismatch" naming the failed checks
+4. [x] "Re-run this yourself": the `cast call` at the receipt's block, the raw `eth_call` JSON, and OKLink links
+5. [x] **Extra:** the dashboard's recent requests link to their Verify pages; the policy check falls back to the latest block if an RPC lacks historical state (circuits are immutable)
 
 **Tests**
 
-- [ ] Unit: each check returns pass or fail with a reason, given fixed inputs
-- [ ] E2E (Playwright, no wallet extension): a valid allow receipt is green on all three checks
-- [ ] E2E: a deny receipt is green (the policy check proves the deny was correct)
-- [ ] E2E tamper tests, each red on the correct check:
+- [x] Unit (14): each check returns pass or fail with a reason for fixed inputs, including a router lying about `budget_ok` or the circuit, a foreign processor, missing historical state, and the exact `cast` and `eth_call` output
+- [x] E2E (Playwright, no wallet): a valid allow receipt is green on all four checks
+- [x] E2E: a deny receipt is green (the policy check proves the deny was correct)
+- [x] E2E tamper tests, each red on the correct check:
   - change `outputBits` → policy check fails
-  - change `costWei` → signature check fails
-  - re-sign a fake receipt with another key → signature check fails
-  - use a valid receipt with a wrong proof → settlement check fails
-- [ ] E2E: an unsettled receipt shows "pending", not "fail"
-- [ ] Manual: open in a private window on a phone, with no wallet, against mainnet
+  - change `costWei` → signature check fails (policy still passes)
+  - re-sign a fake receipt with another key → signature check fails (it names the impostor)
+  - a valid receipt with a wrong proof → settlement check fails (the others pass)
+- [x] E2E: an unsettled receipt shows "pending", not "fail"
+- [x] Real mainnet receipts with no wallet: the Phase 3 served and denied receipts (batch 0) and the Phase 6 Claude Code receipt (batch 1, settled by the router's own settler at block 72,174,540) are all "Verified", 4/4. Run headless in an iPhone 14 viewport with no wallet: no horizontal overflow
+- [ ] Manual: open the hosted URL in a private window on a real phone (needs the app hosted)
 
-**Exit gate:** a stranger with only the URL can verify a real mainnet receipt.
+**Exit gate:** a stranger with only the URL can verify a real mainnet receipt. ✅ The page does this with no wallet, on desktop and phone viewports. ⬜ It needs a public URL: host the router and the web app (for example on Railway), with an SPA fallback for `/verify`.
 
 ---
 

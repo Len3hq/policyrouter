@@ -1,0 +1,6 @@
+# GitBook reads the documentation from /docs (SUMMARY.md is the table of contents).
+# The same files are rendered by the web app at /docs.
+root: ./docs/
+structure:
+  readme: README.md
+  summary: SUMMARY.md

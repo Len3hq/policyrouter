@@ -3,7 +3,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { createTestClient, createWalletClient, http, keccak256, parseEther, toHex, type Address } from "viem";
-import { POLICYROUTER } from "@policyrouter/policy";
 import type { E2EState } from "./global-setup.ts";
 
 const state = () => JSON.parse(readFileSync(new URL("../test-results/e2e-env/state.json", import.meta.url), "utf8")) as E2EState;
@@ -116,14 +115,14 @@ test.describe.serial("owner flow", () => {
     const testClient = createTestClient({ mode: "anvil", transport: http(s.rpcUrl) });
     const read = createWalletClient({ transport: http(s.rpcUrl) });
     const pub = (await import("viem")).createPublicClient({ transport: http(s.rpcUrl) });
-    const router = (await pub.readContract({ address: POLICYROUTER.creditEscrow, abi: escrowAbi, functionName: "router" })) as Address;
+    const router = (await pub.readContract({ address: s.escrow, abi: escrowAbi, functionName: "router" })) as Address;
     await testClient.impersonateAccount({ address: router });
     await testClient.setBalance({ address: router, value: parseEther("1") });
-    const batchId = await pub.readContract({ address: POLICYROUTER.creditEscrow, abi: escrowAbi, functionName: "nextBatchId" });
+    const batchId = await pub.readContract({ address: s.escrow, abi: escrowAbi, functionName: "nextBatchId" });
     const hash = await read.writeContract({
       account: router,
       chain: null,
-      address: POLICYROUTER.creditEscrow,
+      address: s.escrow,
       abi: escrowAbi,
       functionName: "settle",
       args: [batchId, keccak256(toHex("e2e")), [{ agentId, cost: parseEther("0.0005") }]],

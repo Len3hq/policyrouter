@@ -93,11 +93,7 @@ pnpm --filter @policyrouter/router verify-receipt <requestId>          # fetches
 pnpm --filter @policyrouter/router verify-receipt --file response.json
 ```
 
-It runs four checks:
-1. the signature recovers to `ROUTER_ADDRESS`;
-2. re-running `eval(circuitId, inputBits)` at `blockNumber` gives `outputBits`;
-3. `costWei` recomputes from the catalog and the receipt's own token counts, time and OKB rate;
-4. once settled, `CreditEscrow.isInBatch` returns true for the receipt with its proof.
+It runs the Verify page's four checks (signature against `CreditEscrow.router()`, chain inputs at the receipt's block, the policy decision, settlement; see [web.md](web.md#the-verify-page)), plus a fifth: `costWei` recomputes from the catalog and the receipt's own token counts, time and OKB rate.
 
 Mainnet example, the first served request (batch 0):
 
@@ -106,7 +102,9 @@ Mainnet example, the first served request (batch 0):
   policy:    OK  (eval(1, 0x10) at block 72160362 on 0x11FF…6f99 = 0x01, receipt says 0x01)
   cost:      OK  (14 prompt / 0 cached / 24 completion tokens, peak, OKB at $122.65 → 295964125561 wei)
   settled:   OK  (isInBatch(0, 0x37858b22…, 2-step proof) on 0xCc2d…7F7A, tx 0xd472e211…)
-``` It also prints the `cast call` so anyone can repeat the check without this repo.
+```
+
+It also prints the `cast call` so anyone can repeat the check without this repo.
 
 ## Using it with coding agents
 

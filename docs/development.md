@@ -68,6 +68,15 @@ pnpm --filter @policyrouter/router verify-receipt <requestId>
 
 The router shuts down cleanly on SIGINT/SIGTERM: it stops the settler and price feed, finishes in-flight requests and closes SQLite. If a price source's host doesn't resolve from your network, exit waits for that DNS lookup to time out (~30 s), so leave the source out of `PRICE_SOURCES`.
 
+## Writing documentation
+
+The docs are the markdown files in `docs/`, in GitBook's format: `SUMMARY.md` is the table of contents (`## Group` headings and `* [Title](file.md)` lines), and `README.md` is the introduction. The web app renders the same files at `/docs`.
+
+- **Add a page:** create the `.md` file and add it to `SUMMARY.md`. A test fails if a file isn't in the navigation.
+- **Links:** use relative `.md` links between pages (`[policies](policy-circuits.md#size-buckets)`), site routes like `/verify` for app pages, and relative paths for repository files (`../contracts/src/PolicyTreasury.sol`, which becomes a GitHub link on the site). A test fails on any broken page link or anchor.
+- **Code fences:** close every fence with a bare ` ``` `. A stray word after the closing fence turns the rest of the page into code, and a test catches it.
+- **Publishing to GitBook:** connect the repository in GitBook (Git Sync). `.gitbook.yaml` points it at `docs/`.
+
 ## Changing or adding a policy
 
 1. Edit or add a template in `packages/policy/src/templates.ts` and add it to `TEMPLATES`.

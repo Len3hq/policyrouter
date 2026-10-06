@@ -40,6 +40,7 @@ PolicyRegistry and CreditEscrow are documented in [contracts.md](contracts.md).
 | Batch | Receipts | Debited | Root | Tx | Block |
 | --- | --- | --- | --- | --- | --- |
 | 0 | 4 (3 served, 1 denied) from agent 1 | 2,109,162,756,815 wei | `0xe4568b…b31e` | [`0xd472e211…0d66`](https://www.oklink.com/xlayer/tx/0xd472e211c7db8b2fd414ea68b7b5a8e1fc676d73a310dc65cde9830a30c10d66) | 72,161,097 |
+| 1 | 4 from agent 1 (the Phase 6 quickstart: OpenAI SDK Node and Python, Codex, Claude Code), settled by the router's own settler | 38,545,416,643,846 wei | `0x54f22f…7b8c` | [`0xae1f4589…b005`](https://www.oklink.com/xlayer/tx/0xae1f4589f1bd6243d47458bf86909fc64f08d8ff12fbbeb6b5f4b24494a6b005) | 72,174,540 |
 
 Check a batch root: `cast call $ESC "batch(uint256)(bytes32,uint64)" 0 --rpc-url $R`.
 

@@ -16,7 +16,7 @@ export OPENAI_BASE_URL=https://api.policyrouter.xyz/v1
 export OPENAI_API_KEY=pr-live-...
 ```
 
-> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. PolicyRegistry and CreditEscrow (Phase 2) are live too. The OpenAI-compatible router (Phase 3) has served live requests on mainnet through DeepSeek, with signed receipts that verify on chain. The settler (Phase 4) has posted the first batch on chain: every receipt in it proves its inclusion through `CreditEscrow.isInBatch`. All four template policies are live (circuits 1–4), and policy simulation shows an owner what a policy would have done to their own recent traffic. The owner web app (Phase 6) creates and funds agents, switches policies, and runs the kill switch. It's tested end to end on a mainnet fork. The OpenAI SDK (Node and Python), Codex and Claude Code have each been run through the router on mainnet. The Verify page comes next; see [BUILD_PLAN.md](BUILD_PLAN.md).
+> **Status:** Phase 1 is live on X Layer mainnet. The processor is deployed, and the first policy circuit (Budget Guard) is taped out and checked against its truth table on all 64 inputs. PolicyRegistry and CreditEscrow (Phase 2) are live too. The OpenAI-compatible router (Phase 3) has served live requests on mainnet through DeepSeek, with signed receipts that verify on chain. The settler (Phase 4) has posted the first batch on chain: every receipt in it proves its inclusion through `CreditEscrow.isInBatch`. All four template policies are live (circuits 1–4), and policy simulation shows an owner what a policy would have done to their own recent traffic. The owner web app (Phase 6) creates and funds agents, switches policies, and runs the kill switch. It's tested end to end on a mainnet fork. The OpenAI SDK (Node and Python), Codex and Claude Code have each been run through the router on mainnet. The **Verify page** (Phase 7) lets anyone check a receipt with no wallet: signature, the chain state the router fed the circuit, the circuit's decision, and on-chain settlement, with every call shown. See [BUILD_PLAN.md](BUILD_PLAN.md).
 
 ## Deployed on X Layer mainnet (chain 196)
 
@@ -50,6 +50,8 @@ cast call 0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99 "eval(uint256,bytes)(bytes)
 # 0x00  → deny
 ```
 
+Or open any receipt at **`/verify?id=<requestId>`** in the web app; no wallet needed.
+
 Or check all 64 rows: `pnpm --filter @policyrouter/circuits check 1 budget-guard`. The mainnet result is in [circuits/proof/budget-guard.txt](circuits/proof/budget-guard.txt).
 
 ## Works with
@@ -67,8 +69,12 @@ Setup for each is in [docs/router.md](docs/router.md#using-it-with-coding-agents
 
 ## Documentation
 
+The full documentation is at **`/docs` in the web app** (a GitBook-style site), and the same files live in [`docs/`](docs/README.md). Start with the [introduction](docs/README.md) or the [quickstart](docs/guide/quickstart.md).
+
 | Doc | What it covers |
 | --- | --- |
+| [docs/guide/](docs/SUMMARY.md) | The user guide: quickstart, how it works, policies, receipts, pricing, security and limits, FAQ |
+| [docs/api/reference.md](docs/api/reference.md) | The API: endpoints, receipts, errors |
 | [docs/architecture.md](docs/architecture.md) | How a request flows through the router, the processor and the contracts; what is built and what is planned |
 | [docs/web.md](docs/web.md) | The owner web app: screens, where the key lives, running it, tests |
 | [docs/router.md](docs/router.md) | The OpenAI-compatible router: request flow, endpoints, receipts, the model catalog, running it, issuing keys |

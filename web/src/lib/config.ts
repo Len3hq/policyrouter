@@ -5,8 +5,9 @@ export const CONFIG = {
   routerUrl: (import.meta.env.VITE_ROUTER_URL as string | undefined) ?? "http://localhost:8787",
   rpcUrl: (import.meta.env.VITE_RPC_URL as string | undefined) ?? "https://rpc.xlayer.tech",
   chainId: XLAYER_CHAIN_ID,
-  registry: POLICYROUTER.policyRegistry,
-  escrow: POLICYROUTER.creditEscrow,
+  // Overridable for end-to-end tests, which deploy their own registry and escrow on a fork.
+  registry: ((import.meta.env.VITE_REGISTRY_ADDRESS as string | undefined) || POLICYROUTER.policyRegistry) as `0x${string}`,
+  escrow: ((import.meta.env.VITE_ESCROW_ADDRESS as string | undefined) || POLICYROUTER.creditEscrow) as `0x${string}`,
   processor: POLICYROUTER.processor,
   transistors: POLICYROUTER.transistors,
   explorer: "https://www.oklink.com/xlayer",
