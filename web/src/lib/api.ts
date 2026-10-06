@@ -89,12 +89,14 @@ export interface HistoryReceipt {
   settled: boolean;
 }
 
-/** GET /v1/usage/history: one agent's requests over a range, across every key it has had. */
+/** GET /v1/usage/history: one project's requests over a range, across every key it has had. */
 export interface History {
   agentId: string;
   range: HistoryRange;
   bucketMs: number;
   totals: { requests: number; allowed: number; downgraded: number; denied: number; spentWei: string; unsettledWei: string; promptTokens: number; completionTokens: number };
+  /** Used but not yet debited on chain, all time (absent on routers older than this field) */
+  pendingWei?: string;
   series: HistoryBucket[];
   byModel: { model: string; requests: number; spentWei: string; tokens: number }[];
   receipts: HistoryReceipt[];

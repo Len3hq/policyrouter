@@ -2,7 +2,7 @@
 
 ## Is PolicyRouter custodial? Who holds my OKB?
 
-Your deposit sits in the CreditEscrow smart contract, not with us. Only the agent's owner can deposit or withdraw, and the router can only *settle*: take what your agent used, capped by your balance and your daily cap. Nobody, including us, can move your balance anywhere else. See [Security and limits](security-and-limits.md).
+Your deposit sits in the CreditEscrow smart contract, not with us. Only the project's owner can deposit or withdraw, and the router can only *settle*: take what your agent used, capped by your balance and your daily cap. Nobody, including us, can move your balance anywhere else. See [Security and limits](security-and-limits.md).
 
 ## What happens if the router goes down?
 
@@ -10,7 +10,7 @@ Your agent's requests fail. Your funds are safe: withdraw them from CreditEscrow
 
 ## Can the policy be changed after I set it?
 
-The **circuit** never changes. You can point your agent at a **different** circuit, but only you can, it costs a transaction, and it's an event anyone can see.
+The **circuit** never changes. You can point your project at a **different** circuit, but only you can, it costs a transaction, and it's an event anyone can see.
 
 ## Can the router serve a request the policy denied?
 
@@ -22,7 +22,7 @@ Check them. Signatures, the circuit's decision, the kill switch, the budget flag
 
 ## Why did my request come back as a cheaper model?
 
-Your agent's policy downgraded it. With Cheap Only or Strict, any request for `premium` or `frontier` is served as `standard`. The receipt shows `modelRequested` and `modelServed`, and you're charged for what was served.
+Your project's policy downgraded it. With Cheap Only or Strict, any request for `premium` or `frontier` is served as `standard`. The receipt shows `modelRequested` and `modelServed`, and you're charged for what was served.
 
 ## Why was my request denied?
 

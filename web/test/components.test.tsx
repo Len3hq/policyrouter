@@ -37,15 +37,15 @@ describe("SimulationPanel", () => {
     expect(screen.getByTestId("sim-savings")).toHaveTextContent("75.0%");
     expect(screen.getByText(/0\.0005/)).toBeInTheDocument(); // spend with the policy
     expect(screen.getByText(/0\.002/)).toBeInTheDocument(); // spend without
-    expect(screen.getByText(/this agent's last 20 requests/)).toBeInTheDocument();
+    expect(screen.getByText(/this project's last 20 requests/)).toBeInTheDocument();
   });
 
   it("says 'request', not '1 requests'", () => {
     render(<SimulationPanel result={result} source="history" requests={1} />);
-    expect(screen.getByText("Simulated on this agent's last request.")).toBeInTheDocument();
+    expect(screen.getByText("Simulated on this project's last request.")).toBeInTheDocument();
   });
 
-  it("says when it is showing the sample workload because the agent has no history", () => {
+  it("says when it is showing the sample workload because the project has no history", () => {
     render(<SimulationPanel result={result} source="sample" requests={20} />);
     expect(screen.getByText(/sample workload of 20 typical requests/)).toBeInTheDocument();
     expect(screen.getByText(/no history yet/)).toBeInTheDocument();

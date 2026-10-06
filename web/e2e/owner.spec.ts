@@ -50,11 +50,11 @@ test.describe.serial("owner flow", () => {
   let apiKey = "";
   let agentId = 0n;
 
-  test("connect → create agent → save key → pick Cheap Only → dashboard shows policy and balance", async ({ page }) => {
+  test("connect → create project → save key → pick Cheap Only → dashboard shows policy and balance", async ({ page }) => {
     await connect(page);
 
-    // a new wallet has no agents, so the create form opens
-    await expect(page.getByRole("heading", { name: "New agent" })).toBeVisible();
+    // a new wallet has no projects, so the create form opens
+    await expect(page.getByRole("heading", { name: "New project" })).toBeVisible();
     await page.getByTestId("create-cap").fill("0.001");
     await page.getByTestId("create-deposit").fill("0.002");
     await page.getByTestId("create-submit").click();
@@ -70,8 +70,8 @@ test.describe.serial("owner flow", () => {
     // dashboard: Budget Guard (the default), funded
     await expect(page.getByTestId("balance")).toHaveText("0.002 OKB");
     await expect(page.getByTestId("agent-status")).toHaveText("Active");
-    const heading = await page.getByRole("heading", { level: 2 }).filter({ hasText: "Agent #" }).first().textContent();
-    agentId = BigInt(/Agent #(\d+)/.exec(heading!)![1]!);
+    const heading = await page.getByRole("heading", { level: 2 }).filter({ hasText: "Project #" }).first().textContent();
+    agentId = BigInt(/Project #(\d+)/.exec(heading!)![1]!);
     await page.getByTestId("tab-policy").click();
     await expect(page.getByTestId("policy-budget-guard").getByTestId("current-policy")).toBeVisible();
 
@@ -127,8 +127,8 @@ test.describe.serial("owner flow", () => {
     await builder.getByTestId("builder-apply").click();
 
     // three transactions later the agent is on the new circuit
-    await expect(page.getByRole("heading", { level: 2 }).filter({ hasText: "Agent #" })).toContainText("custom policy (circuit #", { timeout: 90_000 });
-    const heading = await page.getByRole("heading", { level: 2 }).filter({ hasText: "Agent #" }).textContent();
+    await expect(page.getByRole("heading", { level: 2 }).filter({ hasText: "Project #" })).toContainText("custom policy (circuit #", { timeout: 90_000 });
+    const heading = await page.getByRole("heading", { level: 2 }).filter({ hasText: "Project #" }).textContent();
     const circuitId = Number(/circuit #(\d+)/.exec(heading!)![1]);
     expect(circuitId).toBeGreaterThan(4);
 
@@ -209,6 +209,35 @@ test.describe.serial("owner flow", () => {
     expect(r.status).toBe(403);
     await page.getByTestId("refresh").click();
     await expect(page.getByTestId("usage-denied")).toHaveText(String(deniedBefore + 1));
+  });
+
+  test("withdraw: more than the withdrawable amount is refused, a smaller amount goes back to the wallet", async ({ page }) => {
+    await connect(page);
+    await page.getByTestId(`agent-${agentId}`).click();
+    // deposited 0.002, 0.0005 settled above: 0.0015 on chain
+    await expect(page.getByTestId("balance")).toHaveText("0.0015 OKB");
+    await page.getByTestId("withdraw-input").fill("0.0016");
+    await page.getByTestId("withdraw-submit").click();
+    await expect(page.getByTestId("withdraw-error")).toContainText("You can withdraw at most");
+    await page.getByTestId("withdraw-input").fill("0.0001");
+    await page.getByTestId("withdraw-submit").click();
+    await expect(page.getByTestId("balance")).toHaveText("0.0014 OKB", { timeout: 60_000 });
+  });
+
+  test("the logo goes home while connected, and the account menu disconnects", async ({ page }) => {
+    await connect(page);
+    await expect(page).toHaveURL(/\/app$/);
+    await page.getByTestId("brand").click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByTestId("hero-cta")).toHaveText("Open dashboard");
+    await page.getByTestId("hero-cta").click();
+    await expect(page).toHaveURL(/\/app$/);
+
+    await page.getByTestId("account").click();
+    await page.getByTestId("disconnect").click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByTestId("connect")).toBeVisible();
+    await expect(page.getByTestId("hero-cta")).toHaveText("Connect wallet");
   });
 
   test("wrong network → the app asks to switch to X Layer, and switching clears it", async ({ page }) => {

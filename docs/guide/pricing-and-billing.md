@@ -55,16 +55,16 @@ At the same OKB price, a million completion tokens on `frontier` at peak costs a
 
 ## Where the money goes
 
-1. **You deposit OKB** into CreditEscrow for an agent. It sits there, owned by you.
+1. **You deposit OKB** into CreditEscrow for a project. It sits there, owned by you.
 2. **Requests are metered** as they happen, but not charged until settlement.
-3. **Every few minutes the router settles.** CreditEscrow takes each agent's total for the batch out of its balance and adds it to the fees the router has earned. It never takes more than the agent's balance, and never pushes the day past the agent's cap.
+3. **Every few minutes the router settles.** CreditEscrow takes each project's total for the batch out of its balance and adds it to the fees the router has earned. It never takes more than the project's balance, and never pushes the day past the project's cap.
 4. **The fees go to one fixed address.** CreditEscrow's `payee`, set at deployment and unchangeable, receives the settled fees. The router cannot send them elsewhere.
 
 You can see all of it: the deposit, each batch, and every receipt's cost.
 
 ## Withdrawing
 
-Anything not yet settled out of your balance is yours. [Withdraw it](owner-app.md#deposits-and-withdrawals) at any time, even while the kill switch is on. Withdrawals are sent only to the agent's owner.
+Anything not yet settled out of your balance is yours. [Withdraw it](owner-app.md#deposits-and-withdrawals) at any time, even while the kill switch is on. Withdrawals are sent only to the project's owner.
 
 ## Policies are separate from this
 

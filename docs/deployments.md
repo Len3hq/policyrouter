@@ -10,7 +10,7 @@ Every address here is on **X Layer mainnet (chain ID 196)**. The machine-readabl
 | Transistors | [`0x8B37B74083Eb87A5B725B152621c729b478262E9`](https://www.oklink.com/xlayer/address/0x8B37B74083Eb87A5B725B152621c729b478262E9) | ERC-1155, token ID 0. Minted at a fixed price, burned one per gate at tape-out |
 | PolicyTreasury | [`0xad56De63a2F9F5f1170E9044046C15ee467b6288`](https://www.oklink.com/xlayer/address/0xad56De63a2F9F5f1170E9044046C15ee467b6288) | Our contract. It created the processor in its constructor, so it is the transistor creator and receives every mint payment. Source: [`contracts/src/PolicyTreasury.sol`](../contracts/src/PolicyTreasury.sol) |
 | Deployment wallet | [`0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3`](https://www.oklink.com/xlayer/address/0x87FD4bE65Ac1Eb485628539379582E8aebdD78d3) | Sent the deployment transactions. Owns circuit 1. It is also the treasury's `ops` and `granter` address |
-| PolicyRegistry | [`0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a`](https://www.oklink.com/xlayer/address/0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a) | Our contract. Links each agent's API key hash to its owner, policy circuit, daily cap and kill switch. Bound to the processor above. Source: [`contracts/src/PolicyRegistry.sol`](../contracts/src/PolicyRegistry.sol) |
+| PolicyRegistry | [`0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a`](https://www.oklink.com/xlayer/address/0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a) | Our contract. Links each project's API key hash to its owner, policy circuit, daily cap and kill switch. Bound to the processor above. Source: [`contracts/src/PolicyRegistry.sol`](../contracts/src/PolicyRegistry.sol) |
 | CreditEscrow | [`0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A`](https://www.oklink.com/xlayer/address/0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A) | Our contract. Holds prepaid OKB, tracks daily spend, settles usage with Merkle roots of receipts. Bound to PolicyRegistry. Source: [`contracts/src/CreditEscrow.sol`](../contracts/src/CreditEscrow.sol) |
 | Router wallet | [`0xbFF88F4CBe6723467A1c9BBbF187d8e2aB8FD5f3`](https://www.oklink.com/xlayer/address/0xbFF88F4CBe6723467A1c9BBbF187d8e2aB8FD5f3) | Signs receipts. The only address `CreditEscrow.settle()` accepts. No transactions yet |
 
@@ -39,8 +39,8 @@ PolicyRegistry and CreditEscrow are documented in [contracts.md](contracts.md).
 
 | Batch | Receipts | Debited | Root | Tx | Block |
 | --- | --- | --- | --- | --- | --- |
-| 0 | 4 (3 served, 1 denied) from agent 1 | 2,109,162,756,815 wei | `0xe4568b…b31e` | [`0xd472e211…0d66`](https://www.oklink.com/xlayer/tx/0xd472e211c7db8b2fd414ea68b7b5a8e1fc676d73a310dc65cde9830a30c10d66) | 72,161,097 |
-| 1 | 4 from agent 1 (the Phase 6 quickstart: OpenAI SDK Node and Python, Codex, Claude Code), settled by the router's own settler | 38,545,416,643,846 wei | `0x54f22f…7b8c` | [`0xae1f4589…b005`](https://www.oklink.com/xlayer/tx/0xae1f4589f1bd6243d47458bf86909fc64f08d8ff12fbbeb6b5f4b24494a6b005) | 72,174,540 |
+| 0 | 4 (3 served, 1 denied) from project 1 | 2,109,162,756,815 wei | `0xe4568b…b31e` | [`0xd472e211…0d66`](https://www.oklink.com/xlayer/tx/0xd472e211c7db8b2fd414ea68b7b5a8e1fc676d73a310dc65cde9830a30c10d66) | 72,161,097 |
+| 1 | 4 from project 1 (the Phase 6 quickstart: OpenAI SDK Node and Python, Codex, Claude Code), settled by the router's own settler | 38,545,416,643,846 wei | `0x54f22f…7b8c` | [`0xae1f4589…b005`](https://www.oklink.com/xlayer/tx/0xae1f4589f1bd6243d47458bf86909fc64f08d8ff12fbbeb6b5f4b24494a6b005) | 72,174,540 |
 
 Check a batch root: `cast call $ESC "batch(uint256)(bytes32,uint64)" 0 --rpc-url $R`.
 

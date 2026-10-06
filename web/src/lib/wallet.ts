@@ -14,6 +14,25 @@ export interface Eip1193 {
 
 let testWallet: Eip1193 | undefined;
 
+// Wallets keep a site authorized, so on load eth_accounts would silently reconnect. After the user
+// disconnects we remember it in this browser and skip that until they click Connect again.
+const DISCONNECTED = "policyrouter:disconnected";
+const wasDisconnected = () => {
+  try {
+    return localStorage.getItem(DISCONNECTED) === "1";
+  } catch {
+    return false;
+  }
+};
+const setDisconnected = (on: boolean) => {
+  try {
+    if (on) localStorage.setItem(DISCONNECTED, "1");
+    else localStorage.removeItem(DISCONNECTED);
+  } catch {
+    // storage unavailable: disconnect still lasts until the page reloads
+  }
+};
+
 export function getProvider(): Eip1193 | undefined {
   if (CONFIG.testWalletKey) return (testWallet ??= createTestWallet(CONFIG.testWalletKey, CONFIG.testWalletChainId));
   return (globalThis as { ethereum?: Eip1193 }).ethereum;
@@ -26,6 +45,8 @@ export interface Wallet {
   wrongNetwork: boolean;
   error: string | undefined;
   connect(): Promise<void>;
+  /** Forgets the account here, stops auto-reconnecting, and asks the wallet to drop this site's permission if it can. */
+  disconnect(): Promise<void>;
   switchToXLayer(): Promise<void>;
   /** Sends a contract call from the connected account and waits for it to be mined. */
   write(args: { address: Address; abi: Abi; functionName: string; args?: unknown[]; value?: bigint }): Promise<TransactionReceipt>;
@@ -39,7 +60,7 @@ export function useWallet(): Wallet {
 
   useEffect(() => {
     if (!provider) return;
-    const onAccounts = (a: unknown) => setAddress(((a as string[])[0] as Address | undefined) ?? undefined);
+    const onAccounts = (a: unknown) => setAddress(wasDisconnected() ? undefined : (((a as string[])[0] as Address | undefined) ?? undefined));
     const onChain = (c: unknown) => setChainId(Number(c));
     provider.on?.("accountsChanged", onAccounts);
     provider.on?.("chainChanged", onChain);
@@ -58,12 +79,21 @@ export function useWallet(): Wallet {
       return;
     }
     try {
+      setDisconnected(false);
       const accounts = (await provider.request({ method: "eth_requestAccounts" })) as Address[];
       setAddress(accounts[0]);
       setChainId(Number(await provider.request({ method: "eth_chainId" })));
     } catch (e) {
       setError((e as Error).message);
     }
+  }, [provider]);
+
+  const disconnect = useCallback(async () => {
+    setDisconnected(true);
+    setAddress(undefined);
+    setError(undefined);
+    // EIP-2255: supported by MetaMask and some others; wallets without it just keep the site authorized
+    await provider?.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] }).catch(() => undefined);
   }, [provider]);
 
   const switchToXLayer = useCallback(async () => {
@@ -113,6 +143,7 @@ export function useWallet(): Wallet {
     wrongNetwork: address !== undefined && chainId !== undefined && chainId !== CONFIG.chainId,
     error,
     connect,
+    disconnect,
     switchToXLayer,
     write,
   };

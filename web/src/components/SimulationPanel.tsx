@@ -1,7 +1,7 @@
 import { okb } from "../lib/chain.ts";
 import type { SimResult } from "../lib/api.ts";
 
-/** What one template would have done to the agent's recent requests (or the sample workload). */
+/** What one template would have done to the project's recent requests (or the sample workload). */
 export function SimulationPanel({ result, source, requests }: { result: SimResult; source: "history" | "sample"; requests: number }) {
   const without = BigInt(result.spendWithout);
   const withPolicy = BigInt(result.spendWith);
@@ -9,8 +9,8 @@ export function SimulationPanel({ result, source, requests }: { result: SimResul
     <div className="sim" data-testid={`sim-${result.template}`}>
       <p className="sim-source muted">
         {source === "sample"
-          ? `Simulated on a sample workload of ${requests} typical requests: this agent has no history yet.`
-          : `Simulated on this agent's last ${requests === 1 ? "request" : `${requests} requests`}.`}
+          ? `Simulated on a sample workload of ${requests} typical requests: this project has no history yet.`
+          : `Simulated on this project's last ${requests === 1 ? "request" : `${requests} requests`}.`}
       </p>
       <dl className="sim-counts">
         <div>

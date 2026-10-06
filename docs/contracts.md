@@ -5,25 +5,25 @@ PolicyRouter has three contracts of its own. The TapeOut processor and transisto
 | Contract | Job | Status |
 | --- | --- | --- |
 | [PolicyTreasury](../contracts/src/PolicyTreasury.sol) | Created the processor; receives and splits transistor sales | Live: [deployments.md](deployments.md) |
-| [PolicyRegistry](../contracts/src/PolicyRegistry.sol) | Links each agent's API key to its owner, policy circuit, daily cap and kill switch | Live: [`0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a`](https://www.oklink.com/xlayer/address/0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a) |
+| [PolicyRegistry](../contracts/src/PolicyRegistry.sol) | Links each project's API key to its owner, policy circuit, daily cap and kill switch | Live: [`0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a`](https://www.oklink.com/xlayer/address/0x7F05d6c389F973EA3Fb10A3Eb27e338f8eB42D0a) |
 | [CreditEscrow](../contracts/src/CreditEscrow.sol) | Holds prepaid OKB, tracks daily spend, settles usage in batches with Merkle roots of receipts | Live: [`0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A`](https://www.oklink.com/xlayer/address/0xCc2dd59C8042e42253D1C14d5c34F976226b7F7A) |
 
 ABIs are in [`contracts/abi/`](../contracts/abi). PolicyTreasury is covered in [economics.md](economics.md). This page covers the other two.
 
 ## PolicyRegistry
 
-An **agent** has a permanent `agentId` (1, 2, 3, …). Its API key is stored only as `keyHash = keccak256(apiKey)`, so the key itself never touches the chain. The key can be rotated without changing the agent's settings or its escrow balance.
+A **project** (the contracts call it an *agent*) has a permanent `agentId` (1, 2, 3, …). Its API key is stored only as `keyHash = keccak256(apiKey)`, so the key itself never touches the chain. The key can be rotated without changing the project's settings or its escrow balance.
 
-### Writes (the agent's owner only, except `registerAgent`)
+### Writes (the project's owner only, except `registerAgent`)
 
 | Function | What it does |
 | --- | --- |
-| `registerAgent(keyHash, circuitId, dailyCap) → agentId` | Creates an agent owned by the caller |
-| `setCircuit(agentId, circuitId)` | Points the agent at a different policy circuit |
+| `registerAgent(keyHash, circuitId, dailyCap) → agentId` | Creates a project owned by the caller |
+| `setCircuit(agentId, circuitId)` | Points the project at a different policy circuit |
 | `setDailyCap(agentId, dailyCap)` | Daily spend cap, in wei of OKB per UTC day |
 | `setKill(agentId, bool)` | The kill switch. The router refuses every request while it is on |
 | `rotateKey(agentId, newKeyHash)` | Replaces the API key. The old key stops working at once |
-| `transferAgent(agentId, newOwner)` | Hands the agent, and control of its escrow balance, to a new owner |
+| `transferAgent(agentId, newOwner)` | Hands the project, and control of its escrow balance, to a new owner |
 
 ### Rules it enforces
 
@@ -38,8 +38,8 @@ An **agent** has a permanent `agentId` (1, 2, 3, …). Its API key is stored onl
 | --- | --- |
 | `policyOf(keyHash)` | `(agentId, owner, circuitId, dailyCap, killed)`, everything the router needs in one call. `agentId` is 0 for an unknown key |
 | `killed(keyHash)` | Kill switch state; `true` for unknown keys |
-| `agentOf(keyHash)` | The agent a live key belongs to, or 0 |
-| `agent(agentId)`, `ownerOf(agentId)`, `dailyCapOf(agentId)` | Agent details |
+| `agentOf(keyHash)` | The project a live key belongs to, or 0 |
+| `agent(agentId)`, `ownerOf(agentId)`, `dailyCapOf(agentId)` | Project details |
 
 ## CreditEscrow
 
@@ -49,25 +49,25 @@ Balances and spend are tracked per `agentId`, so they survive key rotation.
 
 | Function | Who | What it does |
 | --- | --- | --- |
-| `deposit(agentId)` (payable) | Agent owner | Adds OKB to the agent's balance |
-| `withdraw(agentId, amount)` | Agent owner | Returns unused balance to the owner. Works even while the kill switch is on |
+| `deposit(agentId)` (payable) | Project owner | Adds OKB to the project's balance |
+| `withdraw(agentId, amount)` | Project owner | Returns unused balance to the owner. Works even while the kill switch is on |
 | `settle(batchId, root, entries[])` | Router only | Debits each `(agentId, cost)` entry and stores the batch's receipt Merkle root with the block number |
 | `claimEarnings()` | Anyone | Pays settled fees to the fixed `payee` |
 
 ### Rules it enforces, whatever the router sends
 
-- **A settle never takes more than an agent's balance.**
-- **A settle never pushes an agent's spend for the day past its daily cap.** The day is the UTC day (`block.timestamp / 1 days`), so spend resets automatically.
-- **Capped debits:** if an entry would break either rule, only the allowed amount is debited and the rest is reported as `Shortfall(batchId, agentId, amount)`. It doesn't revert, so one agent can't block a whole batch.
+- **A settle never takes more than a project's balance.**
+- **A settle never pushes a project's spend for the day past its daily cap.** The day is the UTC day (`block.timestamp / 1 days`), so spend resets automatically.
+- **Capped debits:** if an entry would break either rule, only the allowed amount is debited and the rest is reported as `Shortfall(batchId, agentId, amount)`. It doesn't revert, so one project can't block a whole batch.
 - **Batches are numbered 0, 1, 2, …** and must be settled in order, each exactly once. A retried settle can't double-charge.
-- **Only the owner can deposit.** If someone front-runs an agent registration with a stolen key hash, the real owner's deposit reverts instead of funding the attacker's agent.
-- Withdrawals and fee claims go only to fixed addresses (the agent's owner or `payee`), and both are protected against reentrancy.
+- **Only the owner can deposit.** If someone front-runs a project registration with a stolen key hash, the real owner's deposit reverts instead of funding the attacker's project.
+- Withdrawals and fee claims go only to fixed addresses (the project's owner or `payee`), and both are protected against reentrancy.
 
 ### Reads
 
 | Function | Returns |
 | --- | --- |
-| `budgetOk(agentId)` | `true` if the agent has a balance and today's spend is under its cap |
+| `budgetOk(agentId)` | `true` if the project has a balance and today's spend is under its cap |
 | `budgetOkForKey(keyHash)` | The same, by key; `false` for unknown keys |
 | `balanceOf(agentId)`, `spentToday(agentId)` | Balance and today's spend |
 | `batch(batchId)` | `(root, blockNumber)` of a settled batch |

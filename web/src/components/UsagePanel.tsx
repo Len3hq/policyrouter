@@ -40,7 +40,7 @@ export function RangePicker({ range, onRange, onRefresh }: { range: HistoryRange
   );
 }
 
-/** Usage charts for one agent over the selected range. */
+/** Usage charts for one project over the selected range. */
 export function UsagePanel({ history, stale }: { history: History; stale: boolean }) {
   const t = history.totals;
   const tokens = t.promptTokens + t.completionTokens;

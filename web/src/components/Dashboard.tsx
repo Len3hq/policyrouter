@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { parseEther } from "viem";
+import { formatEther, parseEther } from "viem";
 import { api, emptyHistory, generateKey, hashKey, isWellFormedKey, sessionKey, type History, type HistoryRange, type SimResponse } from "../lib/api.ts";
 import { escrowAbi, okb, readAgent, registryAbi, type AgentState } from "../lib/chain.ts";
 import { CONFIG } from "../lib/config.ts";
 import { agentLabel, agentNames, MAX_NAME_LENGTH } from "../lib/names.ts";
 import type { Wallet } from "../lib/wallet.ts";
+import { parseWithdraw, withdrawable } from "../lib/withdraw.ts";
 import { ErrorNote, errorText } from "./common.tsx";
 import { KeyReveal } from "./KeyReveal.tsx";
 import { PolicyBuilder } from "./PolicyBuilder.tsx";
@@ -25,6 +26,8 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
   const [error, setError] = useState<string>();
   const [capInput, setCapInput] = useState("");
   const [depositInput, setDepositInput] = useState("0.001");
+  const [withdrawInput, setWithdrawInput] = useState("");
+  const [withdrawError, setWithdrawError] = useState<string>();
   const [keyInput, setKeyInput] = useState("");
   const [nameInput, setNameInput] = useState(() => agentNames.get(agentId) ?? "");
   const [rotatedKey, setRotatedKey] = useState<string>();
@@ -74,7 +77,7 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
   }
 
   function rotate() {
-    if (!confirm("Rotate this agent's key? The current key stops working as soon as the transaction confirms.")) return;
+    if (!confirm("Rotate this project's key? The current key stops working as soon as the transaction confirms.")) return;
     const k = generateKey();
     void act("rotate", async () => {
       await wallet.write({ address: CONFIG.registry, abi: registryAbi, functionName: "rotateKey", args: [agentId, hashKey(k)] });
@@ -84,13 +87,16 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
     });
   }
 
-  if (!agent) return <section className="card">Loading agent #{agentId.toString()}…</section>;
+  if (!agent) return <section className="card">Loading project #{agentId.toString()}…</section>;
 
   const policy = templateForCircuit(agent.circuitId);
   // Until real usage arrives (no key, no requests yet, or the router can't serve it), show the empty dashboard.
   const shown = history ?? emptyHistory(range);
   const stale = !!key && !historyError && (!history || history.range !== range);
   const capPct = agent.dailyCap > 0n ? Number((agent.spentToday * 10_000n) / agent.dailyCap) / 100 : 100;
+  // Withdrawable: the on-chain balance (deposits minus settled usage) minus usage not settled yet.
+  const pending = history ? BigInt(history.pendingWei ?? history.totals.unsettledWei) : undefined;
+  const canWithdraw = withdrawable(agent.balance, pending);
   const status = agent.killed ? "Killed" : !agent.budgetOk ? (agent.balance === 0n ? "Unfunded" : "Over today's cap") : "Active";
 
   return (
@@ -112,6 +118,10 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
             <span className="label">Balance</span>
             <span className="value" data-testid="balance">
               {okb(agent.balance)} OKB
+            </span>
+            <span className="muted small" data-testid="withdrawable">
+              {okb(canWithdraw, 8)} OKB withdrawable
+              {pending !== undefined && pending > 0n ? `, ${okb(pending, 8)} OKB held for usage not settled yet` : ""}
             </span>
           </div>
           <div className="stat">
@@ -188,6 +198,59 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
           </form>
           <form
             className="control"
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              const r = parseWithdraw(withdrawInput, canWithdraw);
+              if ("error" in r) {
+                setWithdrawError(r.error);
+                return;
+              }
+              setWithdrawError(undefined);
+              void act("withdraw", async () => {
+                await wallet.write({ address: CONFIG.escrow, abi: escrowAbi, functionName: "withdraw", args: [agentId, r.wei] });
+                setWithdrawInput("");
+              });
+            }}
+          >
+            <label className="label" htmlFor="withdraw-input">
+              Withdraw (OKB)
+            </label>
+            <div className="row">
+              <input
+                id="withdraw-input"
+                data-testid="withdraw-input"
+                inputMode="decimal"
+                placeholder={okb(canWithdraw, 8)}
+                value={withdrawInput}
+                aria-invalid={!!withdrawError}
+                aria-describedby="withdraw-help"
+                onChange={(e) => {
+                  setWithdrawInput(e.target.value);
+                  setWithdrawError(undefined);
+                }}
+              />
+              <button type="button" className="btn btn-ghost btn-sm" data-testid="withdraw-max" disabled={!!busy || canWithdraw === 0n} onClick={() => setWithdrawInput(formatEther(canWithdraw))}>
+                Max
+              </button>
+              <button type="submit" className="btn btn-ghost" data-testid="withdraw-submit" disabled={!!busy || canWithdraw === 0n}>
+                {busy === "withdraw" ? "Confirming…" : "Withdraw"}
+              </button>
+            </div>
+            {withdrawError ? (
+              <p id="withdraw-help" className="field-error" role="alert" data-testid="withdraw-error">
+                {withdrawError}
+              </p>
+            ) : (
+              <p id="withdraw-help" className="muted small">
+                {pending === undefined
+                  ? "Up to your balance. Add this project's key below to also hold back usage that hasn't settled yet."
+                  : "Your deposits minus settled usage, minus usage that settles within minutes. Sent to your wallet."}
+              </p>
+            )}
+          </form>
+          <form
+            className="control"
             onSubmit={(e) => {
               e.preventDefault();
               agentNames.set(agentId, nameInput);
@@ -199,7 +262,7 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
               Name (this browser only)
             </label>
             <div className="row">
-              <input id="name-input" data-testid="name-input" placeholder={`Agent #${agentId}`} maxLength={MAX_NAME_LENGTH} value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
+              <input id="name-input" data-testid="name-input" placeholder={`Project #${agentId}`} maxLength={MAX_NAME_LENGTH} value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
               <button type="submit" className="btn btn-ghost" data-testid="name-submit">
                 Rename
               </button>
@@ -215,7 +278,7 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
         <ErrorNote error={error} />
       </section>
 
-      <div className="tabs dash-tabs" role="tablist" aria-label="Agent views">
+      <div className="tabs dash-tabs" role="tablist" aria-label="Project views">
         {(
           [
             ["usage", "Usage"],
@@ -244,14 +307,14 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
         <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="dashboard">
           {!key ? (
             <section className="card" data-testid="unlock">
-              <p className="muted">Usage and receipts are read with the agent's API key, which this browser session doesn't have. Below is an empty dashboard until you add it.</p>
+              <p className="muted">Usage and receipts are read with the project's API key, which this browser session doesn't have. Below is an empty dashboard until you add it.</p>
               <form
                 className="row"
                 onSubmit={(e) => {
                   e.preventDefault();
                   const k = keyInput.trim();
                   if (!isWellFormedKey(k) || hashKey(k) !== agent.keyHash) {
-                    setError("That isn't this agent's key.");
+                    setError("That isn't this project's key.");
                     return;
                   }
                   sessionKey.set(agentId, k);
@@ -259,7 +322,7 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
                   setKeyInput("");
                 }}
               >
-                <input className="grow" aria-label="API key" data-testid="unlock-input" placeholder="Paste this agent's pr-live-… key" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} />
+                <input className="grow" aria-label="API key" data-testid="unlock-input" placeholder="Paste this project's pr-live-… key" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} />
                 <button type="submit" className="btn btn-ghost" data-testid="unlock-submit">
                   Unlock
                 </button>
@@ -286,7 +349,7 @@ export function Dashboard({ agentId, wallet, onChanged }: { agentId: bigint; wal
       {tab === "policy" && (
         <section role="tabpanel" id="panel-policy" aria-labelledby="tab-policy">
           <p className="muted">
-            A policy is a circuit on X Layer that nobody can change. Switching policy points this agent at a different circuit, an on-chain change anyone can see.
+            A policy is a circuit on X Layer that nobody can change. Switching policy points this project at a different circuit, an on-chain change anyone can see.
           </p>
           <PolicyCards
             current={agent.circuitId}

@@ -13,7 +13,7 @@ const FILTERS: { id: Decision | "all"; label: string }[] = [
   { id: "denied", label: "Denied" },
 ];
 
-/** The agent's receipts in the selected range; picking one checks it on X Layer right here. */
+/** The project's receipts in the selected range; picking one checks it on X Layer right here. */
 export function ReceiptsPanel({ receipts, total, stale }: { receipts: HistoryReceipt[]; total: number; stale: boolean }) {
   const [filter, setFilter] = useState<Decision | "all">("all");
   const [shown, setShown] = useState(PAGE);

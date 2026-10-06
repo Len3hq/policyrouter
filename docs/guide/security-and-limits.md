@@ -7,9 +7,9 @@ PolicyRouter makes cheating **detectable and expensive to hide**. It does not ma
 | Guarantee | Why it holds |
 | --- | --- |
 | **A circuit never changes.** | The processor stores its netlist and has no function that edits it. |
-| **Only you can change your agent's settings.** | The registry's `setCircuit`, `setDailyCap`, `setKill`, `rotateKey` and `transferAgent` are owner-only. There is no admin and no upgrade proxy. |
-| **Only you can withdraw your balance.** | Withdrawals go to the agent's owner, from a reentrancy-guarded function. |
-| **The router can't overcharge past your balance or cap.** | `settle` never debits more than an agent's balance, and never pushes the day's spend past the cap. Excess is logged as a shortfall and not charged. |
+| **Only you can change your project's settings.** | The registry's `setCircuit`, `setDailyCap`, `setKill`, `rotateKey` and `transferAgent` are owner-only. There is no admin and no upgrade proxy. |
+| **Only you can withdraw your balance.** | Withdrawals go to the project's owner, from a reentrancy-guarded function. |
+| **The router can't overcharge past your balance or cap.** | `settle` never debits more than a project's balance, and never pushes the day's spend past the cap. Excess is logged as a shortfall and not charged. |
 | **Only the router can settle, and fees go to one fixed address.** | `router` and `payee` are fixed when CreditEscrow is deployed. |
 | **A leaked key can be killed.** | Turn the kill switch on, or [rotate the key](owner-app.md#rotating-a-key). A rotated-out key can never be registered again. |
 | **Every request leaves a signed receipt.** | And any receipt can be [checked on chain](receipts-and-verification.md) by anyone. |
@@ -35,7 +35,7 @@ It can go down, rate-limit you, or stop serving your agent. No circuit can preve
 
 ### The cap is enforced at settlement
 
-The daily cap and `budget_ok` use **settled** spend. Requests made between two settlements (about five minutes) aren't counted until the next batch. A fast agent can spend past its cap inside that window. What bounds the damage:
+The daily cap and `budget_ok` use **settled** spend. Requests made between two settlements (about five minutes) aren't counted until the next batch. A fast agent can spend past its project's cap inside that window. What bounds the damage:
 
 - a settlement can never take more than your **balance**, so deposit what you're willing to spend;
 - the router rate-limits each key (60 requests a minute by default);

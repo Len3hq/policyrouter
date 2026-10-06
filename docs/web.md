@@ -1,6 +1,6 @@
 # Web app
 
-The owner's app: connect a wallet, create and fund an agent, choose its policy (with a simulation of what each one would do), and run the agent's dashboard. Source: [`web/`](../web). It uses React, Vite and viem, with no wallet SDK: any EIP-1193 browser wallet (OKX Wallet, MetaMask, Rabby…) works.
+The owner's app: connect a wallet, create and fund a project, choose its policy (with a simulation of what each one would do), and run the project's dashboard. Source: [`web/`](../web). It uses React, Vite and viem, with no wallet SDK: any EIP-1193 browser wallet (OKX Wallet, MetaMask, Rabby…) works.
 
 ## What it does
 
@@ -8,10 +8,10 @@ The owner's app: connect a wallet, create and fund an agent, choose its policy (
 | --- | --- |
 | Landing (no wallet) | Reads what PolicyRouter is, sees the quickstart and the four policies, each simulated on a sample workload, and connects a wallet |
 | Wrong network | Gets a **Switch to X Layer** button. If the wallet doesn't know the chain, the app adds it (chain 196, `rpc.xlayer.tech`, OKLink) |
-| New agent | Picks a policy, a daily cap and a first deposit. Two transactions: `PolicyRegistry.registerAgent`, then `CreditEscrow.deposit` |
+| New project | Picks a policy, a daily cap and a first deposit. Two transactions: `PolicyRegistry.registerAgent`, then `CreditEscrow.deposit` |
 | Key reveal | Sees the new `pr-live-…` key **once**, copies it, and confirms it's saved |
-| Dashboard | Balance, spend today against the cap, the **kill switch** (`setKill`), **set cap** (`setDailyCap`), **deposit**, request counts (allowed, downgraded, denied), and the quickstart with the real key |
-| Policy | The four templates, each with its rule, circuit id, gate count, a link to its 64/64 mainnet proof, and a **simulation** on this agent's own recent requests. **Use this policy** calls `setCircuit` |
+| Dashboard | Balance, spend today against the cap, the **kill switch** (`setKill`), **set cap** (`setDailyCap`), **deposit**, **withdraw** (`CreditEscrow.withdraw`, capped at the balance minus usage not settled yet), request counts (allowed, downgraded, denied), and the quickstart with the real key |
+| Policy | The four templates, each with its rule, circuit id, gate count, a link to its 64/64 mainnet proof, and a **simulation** on this project's own recent requests. **Use this policy** calls `setCircuit` |
 | Footer | Transistor facts read live from chain: supply cap, price, minted, remaining |
 
 ## The Verify page
@@ -21,7 +21,7 @@ The owner's app: connect a wallet, create and fund an agent, choose its policy (
 | Check | Passes when |
 | --- | --- |
 | **Signature** | The receipt's EIP-712 signature recovers to `CreditEscrow.router()`, the only address allowed to settle, fixed on chain |
-| **Chain inputs** | At the receipt's block, `PolicyRegistry.policyOf(keyHash)` gives the receipt's agent and circuit, and the kill switch and `budget_ok` bits the router fed the circuit match the chain. A router can't claim a budget was fine when it wasn't. Tier and size come from the request itself, which only the agent and router saw |
+| **Chain inputs** | At the receipt's block, `PolicyRegistry.policyOf(keyHash)` gives the receipt's project and circuit, and the kill switch and `budget_ok` bits the router fed the circuit match the chain. A router can't claim a budget was fine when it wasn't. Tier and size come from the request itself, which only the project and router saw |
 | **Policy decision** | `eval(circuitId, inputBits)` on PolicyRouter's processor at the receipt's block returns the receipt's `outputBits`. A receipt naming another processor fails |
 | **Settlement** | `CreditEscrow.isInBatch(batchId, receiptHash, proof)` is true. Shown as **pending**, not failed, until the receipt's batch is settled |
 
@@ -43,7 +43,7 @@ Links between pages work both on GitHub and on the site: relative `.md` links be
 
 - The key is generated **in the browser** (`crypto.getRandomValues`). Only `keccak256(key)` goes on chain.
 - After creation it is kept in **this tab's session storage**, so the dashboard can show usage and simulate with it. It disappears when the tab closes. It is sent only to the router, as the bearer token.
-- In a new session the owner pastes the key to unlock usage. The app checks it against the agent's on-chain key hash before using it.
+- In a new session the owner pastes the key to unlock usage. The app checks it against the project's on-chain key hash before using it.
 
 ## Running it
 

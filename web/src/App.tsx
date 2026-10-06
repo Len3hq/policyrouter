@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, sessionKey, type SimResponse } from "./lib/api.ts";
-import { listAgents, short, type AgentState } from "./lib/chain.ts";
+import { listAgents, type AgentState } from "./lib/chain.ts";
 import { agentLabel } from "./lib/names.ts";
-import { useWallet } from "./lib/wallet.ts";
+import { navigate, onLinkClick, usePath } from "./lib/router.ts";
+import { useWallet, type Wallet } from "./lib/wallet.ts";
+import { AccountMenu } from "./components/AccountMenu.tsx";
 import { ErrorNote, errorText } from "./components/common.tsx";
 import { CreateAgent } from "./components/CreateAgent.tsx";
 import { Dashboard } from "./components/Dashboard.tsx";
@@ -14,24 +16,63 @@ import { Landing } from "./components/Landing.tsx";
 import { DocsPage } from "./components/DocsPage.tsx";
 import { VerifyPage } from "./components/VerifyPage.tsx";
 
-const route = () => location.pathname.replace(/\/$/, "");
-
-/** Three areas: the owner app at /, the public Verify page at /verify (no wallet), and the docs at /docs. */
+/**
+ * Four areas: the landing page at /, the owner app at /app, the public Verify page at /verify (no
+ * wallet), and the docs at /docs. One wallet connection is shared by all of them.
+ */
 export function App() {
-  const r = route();
-  if (r === "/verify") return <Shell active="verify"><VerifyPage /></Shell>;
-  if (r === "/docs" || r.startsWith("/docs/")) return <Shell active="docs" wide><DocsPage /></Shell>;
-  return <OwnerApp />;
+  const path = usePath();
+  const wallet = useWallet();
+
+  // After the user clicks Connect anywhere, take them to the app once the account arrives.
+  const goToApp = useRef(false);
+  useEffect(() => {
+    if (wallet.address && goToApp.current) {
+      goToApp.current = false;
+      navigate("/app");
+    }
+  }, [wallet.address]);
+  const connect = () => {
+    goToApp.current = true;
+    void wallet.connect();
+  };
+
+  if (path === "/verify")
+    return (
+      <Shell active="verify" wallet={wallet} onConnect={connect}>
+        <VerifyPage />
+      </Shell>
+    );
+  if (path === "/docs" || path.startsWith("/docs/"))
+    return (
+      <Shell active="docs" wallet={wallet} onConnect={connect} wide>
+        <DocsPage />
+      </Shell>
+    );
+  if (path === "/app") return <OwnerApp wallet={wallet} onConnect={connect} />;
+  return <Home wallet={wallet} onConnect={connect} />;
 }
 
-function Shell({ children, active, right, wide }: { children: React.ReactNode; active?: "verify" | "docs"; right?: React.ReactNode; wide?: boolean }) {
+function Shell({
+  children,
+  active,
+  wallet,
+  onConnect,
+  wide,
+}: {
+  children: React.ReactNode;
+  active?: "home" | "app" | "verify" | "docs";
+  wallet: Wallet;
+  onConnect: () => void;
+  wide?: boolean;
+}) {
   return (
     <div className="app">
       <a className="skip" href="#main">
         Skip to content
       </a>
       <header className="topbar">
-        <a className="brand" href="/" aria-label="PolicyRouter home">
+        <a className="brand" href="/" aria-label="PolicyRouter home" aria-current={active === "home" ? "page" : undefined} onClick={onLinkClick} data-testid="brand">
           <span className="logo">
             <Logo />
           </span>
@@ -41,16 +82,28 @@ function Shell({ children, active, right, wide }: { children: React.ReactNode; a
           </div>
         </a>
         <nav className="row">
-          <a className={`navlink ${active === "docs" ? "navlink-on" : ""}`} href="/docs" data-testid="nav-docs">
+          {wallet.address && (
+            <a className={`navlink navlink-hide-sm ${active === "app" ? "navlink-on" : ""}`} href="/app" onClick={onLinkClick} data-testid="nav-app">
+              Dashboard
+            </a>
+          )}
+          <a className={`navlink ${active === "docs" ? "navlink-on" : ""}`} href="/docs" onClick={onLinkClick} data-testid="nav-docs">
             Docs
           </a>
-          <a className={`navlink ${active === "verify" ? "navlink-on" : ""}`} href="/verify" data-testid="nav-verify">
+          <a className={`navlink ${active === "verify" ? "navlink-on" : ""}`} href="/verify" onClick={onLinkClick} data-testid="nav-verify">
             Verify a receipt
           </a>
-          {right}
+          {wallet.address ? (
+            <AccountMenu wallet={wallet} />
+          ) : (
+            <button type="button" className="btn btn-primary" data-testid="connect" onClick={onConnect}>
+              Connect wallet
+            </button>
+          )}
         </nav>
       </header>
       <main id="main" className={wide ? "main-wide" : undefined}>
+        <ErrorNote error={wallet.error} />
         {children}
       </main>
       <TransistorFacts />
@@ -58,13 +111,24 @@ function Shell({ children, active, right, wide }: { children: React.ReactNode; a
   );
 }
 
-function OwnerApp() {
-  const wallet = useWallet();
+/** The landing page. It stays reachable while connected; its call to action then opens the dashboard. */
+function Home({ wallet, onConnect }: { wallet: Wallet; onConnect: () => void }) {
+  const [sampleSim, setSampleSim] = useState<SimResponse>();
+  useEffect(() => {
+    void api.simulate().then(setSampleSim).catch(() => undefined);
+  }, []);
+  return (
+    <Shell active="home" wallet={wallet} onConnect={onConnect}>
+      <Landing connected={!!wallet.address} onConnect={wallet.address ? () => navigate("/app") : onConnect} sampleSim={sampleSim} />
+    </Shell>
+  );
+}
+
+function OwnerApp({ wallet, onConnect }: { wallet: Wallet; onConnect: () => void }) {
   const [agents, setAgents] = useState<AgentState[]>();
   const [selected, setSelected] = useState<bigint>();
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<{ agentId: bigint; key: string }>();
-  const [sampleSim, setSampleSim] = useState<SimResponse>();
   const [error, setError] = useState<string>();
 
   const loadAgents = useCallback(async () => {
@@ -83,26 +147,18 @@ function OwnerApp() {
     void loadAgents();
   }, [loadAgents]);
 
+  // A different account (or a disconnect) means a different set of agents.
   useEffect(() => {
-    void api.simulate().then(setSampleSim).catch(() => undefined);
-  }, []);
+    setAgents(undefined);
+    setSelected(undefined);
+    setCreating(false);
+    setNewKey(undefined);
+  }, [wallet.address]);
 
   return (
-    <Shell
-      right={
-        wallet.address ? (
-          <span className="pill mono" data-testid="account">
-            {short(wallet.address)}
-          </span>
-        ) : (
-          <button type="button" className="btn btn-primary" data-testid="connect" onClick={() => void wallet.connect()}>
-            Connect wallet
-          </button>
-        )
-      }
-    >
+    <Shell active="app" wallet={wallet} onConnect={onConnect}>
       <>
-        <ErrorNote error={wallet.error ?? error} />
+        <ErrorNote error={error} />
 
         {wallet.wrongNetwork && (
           <section className="card banner" role="alert" data-testid="wrong-network">
@@ -115,12 +171,20 @@ function OwnerApp() {
           </section>
         )}
 
-        {!wallet.address && <Landing onConnect={() => void wallet.connect()} sampleSim={sampleSim} />}
+        {!wallet.address && (
+          <section className="card connect-card" data-testid="connect-prompt">
+            <h1>Connect a wallet to manage your projects</h1>
+            <p className="muted">Your projects, their policies, caps and receipts are tied to the wallet that created them.</p>
+            <button type="button" className="btn btn-primary btn-lg" onClick={onConnect}>
+              Connect wallet
+            </button>
+          </section>
+        )}
 
         {wallet.address && !wallet.wrongNetwork && (
           <div className="layout">
-            <aside className="card sidebar" aria-label="Your agents">
-              <h2>Your agents</h2>
+            <aside className="card sidebar" aria-label="Your projects">
+              <h2>Your projects</h2>
               {agents === undefined && <p className="muted">Loading…</p>}
               {agents?.length === 0 && <p className="muted">None yet.</p>}
               <ul>
@@ -145,7 +209,7 @@ function OwnerApp() {
                 ))}
               </ul>
               <button type="button" className="btn btn-ghost" data-testid="new-agent" onClick={() => setCreating(true)}>
-                + New agent
+                + New project
               </button>
             </aside>
 

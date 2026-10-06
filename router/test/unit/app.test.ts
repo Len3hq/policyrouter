@@ -325,6 +325,24 @@ describe("GET /v1/usage/history", () => {
     expect((await history(t, KEY)).status).toBe(401);
   });
 
+  it("pendingWei counts usage until its batch is confirmed on chain", async () => {
+    const t = setup();
+    await chat(t, { model: "cheap", ...msg });
+    await chat(t, { model: "standard", ...msg });
+    const pending = async () => BigInt(((await (await history(t, KEY)).json()) as { pendingWei: string }).pendingWei);
+    const [first, second] = t.store.unsettled(10);
+    expect(await pending()).toBe(first!.costWei + second!.costWei);
+
+    // in a batch that hasn't confirmed yet: still pending
+    t.store.createBatch({ batchId: 0, root: `0x${"11".repeat(32)}`, entries: [{ agentId: 9n, cost: first!.costWei }], totalWei: first!.costWei, proofs: new Map([[first!.requestId, []]]) });
+    t.store.markSent(0, `0x${"22".repeat(32)}`);
+    expect(await pending()).toBe(first!.costWei + second!.costWei);
+
+    // confirmed: debited on chain, so no longer pending
+    t.store.markConfirmed(0, {});
+    expect(await pending()).toBe(second!.costWei);
+  });
+
   it("400 for an unknown range, 401 without a key, 503 when the chain can't be read", async () => {
     const t = setup();
     expect((await history(t, KEY, "1y")).status).toBe(400);

@@ -7,7 +7,7 @@ Every request that reaches the router, allowed or denied, gets a **receipt**: a 
 | Field | Meaning |
 | --- | --- |
 | `requestId` | A unique id. Use it to fetch the receipt and open its Verify page |
-| `keyHash`, `agentId` | Which agent. The key itself is never in a receipt |
+| `keyHash`, `agentId` | Which project. The key itself is never in a receipt |
 | `processor`, `circuitId` | Which circuit decided |
 | `inputBits` | What the circuit was asked: tier, size, `budget_ok`, `kill` |
 | `outputBits` | What it answered: allow or deny, and the tier |
@@ -28,7 +28,7 @@ Open **[/verify](/verify)** and paste a request id, or open `/verify?id=<request
 | Check | It proves |
 | --- | --- |
 | **Signature** | The receipt was signed by the router address fixed in CreditEscrow, the only address allowed to settle. A changed field breaks the signature. |
-| **Chain inputs** | At the receipt's block, the agent, its circuit, its kill switch and its `budget_ok` really were what the receipt says. A router can't claim an agent was within budget when it wasn't. |
+| **Chain inputs** | At the receipt's block, the project, its circuit, its kill switch and its `budget_ok` really were what the receipt says. A router can't claim a project was within budget when it wasn't. |
 | **Policy decision** | Asking the circuit the receipt's question at the receipt's block gives the receipt's answer. So a denied request really was denied by the policy, and a downgrade really was ordered by it. |
 | **Settlement** | The receipt's hash is in a batch recorded on chain. Until its batch is settled, this check shows *pending*, which is not a failure. |
 

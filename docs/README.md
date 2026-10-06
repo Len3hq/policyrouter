@@ -4,6 +4,8 @@
 
 Giving an AI agent an API key and a budget is a leap of faith. The limits usually live in a dashboard setting or in the agent's own code, and both can be changed, bypassed or misconfigured without anyone noticing. PolicyRouter moves the rules out of reach.
 
+> **Projects and agents.** Your *agent* is the software that makes AI requests: a bot, a script, a coding tool. A *project* is what you create in PolicyRouter for it: an API key plus its policy, daily cap, kill switch and OKB balance. Rotate the key and the project, its settings and its balance stay. (The contracts call a project an agent, so on chain you'll see `agentId` and `registerAgent`.)
+
 Every AI request your agent makes goes through a **policy circuit**: a small logic circuit published on X Layer that nobody can change once it exists. Not the agent, not you in the middle of a task, and not the people who run the router. The circuit answers three ways:
 
 | Answer | What happens |
@@ -30,7 +32,7 @@ AI request  →  policy circuit on X Layer  →  allow / downgrade / deny
 
 - **An OpenAI-compatible endpoint.** Anything that already works with OpenAI works unchanged: the OpenAI SDKs, LangChain, Codex (Responses API) and Claude Code (Anthropic Messages API). Change a base URL and a key.
 - **Four ready-made policies**, each a circuit on X Layer, each proven against its complete truth table: Budget Guard, Cheap Only, Small Requests and Strict.
-- **Prepaid OKB credit.** You deposit OKB for an agent. You can withdraw whatever is unused, at any time.
+- **Prepaid OKB credit.** You deposit OKB for a project. You can withdraw whatever is unused, at any time.
 - **A kill switch** that takes effect on the next request.
 - **A daily spend cap**, enforced by the circuit's budget input.
 - **Policy simulation.** See what a policy would have done to your agent's recent requests before you switch to it.

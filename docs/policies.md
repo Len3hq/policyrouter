@@ -68,11 +68,11 @@ The gate-by-gate wiring is in [circuits/README.md](../circuits/README.md). All 6
 
 Before an owner switches to a policy, they can see what it would have done to their own recent traffic: [`packages/policy/src/simulate.ts`](../packages/policy/src/simulate.ts), served by the router at `GET /v1/simulate` (see [router.md](router.md#endpoints)).
 
-1. Take the agent's last 100 receipts (up to 500 with `?limit=`). Each receipt's `inputBits` holds the tier, size bucket, `budget_ok` and `kill` exactly as the circuit saw them. An agent with no history gets a fixed 20-request sample workload.
+1. Take the project's last 100 receipts (up to 500 with `?limit=`). Each receipt's `inputBits` holds the tier, size bucket, `budget_ok` and `kill` exactly as the circuit saw them. A project with no history gets a fixed 20-request sample workload.
 2. Replay each request through the template's rule and count it as **allowed** (requested tier), **downgraded** (lower tier) or **denied**.
 3. Price **without** a policy (every request at its requested tier) and **with** it (denied requests cost 0; the rest at the tier the rule picks), using the router's catalog, each receipt's own time (peak or off-peak) and OKB rate. Then report `savingsPct`.
 
-Example response, an agent's own history under Cheap Only:
+Example response, a project's own history under Cheap Only:
 
 ```json
 { "source": "history", "requests": 2,

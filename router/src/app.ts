@@ -239,6 +239,8 @@ export function createApp(deps: AppDeps): Hono {
       range,
       bucketMs: spec.bucketMs,
       totals: { ...h.totals, spentWei: h.totals.spentWei.toString(), unsettledWei: h.totals.unsettledWei.toString() },
+      // Used but not yet debited on chain, across all time: the owner app holds this back from withdrawals.
+      pendingWei: store.pendingForAgent(agentId).toString(),
       series: h.series.map((b) => ({ ...b, spentWei: b.spentWei.toString() })),
       byModel: h.byModel.map((m) => ({ ...m, spentWei: m.spentWei.toString() })),
       receipts: h.receipts.map((r) => ({ ...r, costWei: r.costWei.toString() })),

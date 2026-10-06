@@ -27,7 +27,7 @@ Not sure? The app's [policy simulation](owner-app.md#choosing-a-policy) shows wh
 
 ## Custom policies
 
-If none of the four fits, build your own in the app (**Build a custom policy**, under the agent's policies). Three settings:
+If none of the four fits, build your own in the app (**Build a custom policy**, under the project's **Policy** tab). Three settings:
 
 | Setting | Choices |
 | --- | --- |
@@ -41,9 +41,9 @@ That gives 28 distinct rules, and the four templates are among them. The app tur
 
 | If your rule… | The app… |
 | --- | --- |
-| equals a template | points your agent at the template's circuit. Nothing to tape out |
-| was already taped out by anyone | points your agent at that circuit. Circuits are public, so reuse is free |
-| is new | mints the transistors (or uses ones you hold), tapes out the circuit, and switches your agent to it: three transactions, the new circuit owned by you |
+| equals a template | points your project at the template's circuit. Nothing to tape out |
+| was already taped out by anyone | points your project at that circuit. Circuits are public, so reuse is free |
+| is new | mints the transistors (or uses ones you hold), tapes out the circuit, and switches your project to it: three transactions, the new circuit owned by you |
 
 A tape-out costs one transistor per gate (0.0001 OKB each) plus TapeOut's fees (0.00066 OKB per mint and 0.0013 OKB per tape-out), about 0.002–0.004 OKB in all. The transistor money goes to PolicyTreasury ([Economics](../economics.md)).
 
@@ -57,7 +57,7 @@ The router builds six bits for every request:
 | --- | --- | --- | --- |
 | 0–1 | `tier` | The model you asked for: 0 *cheap*, 1 *standard*, 2 *premium*, 3 *frontier* | The model name in your request |
 | 2–3 | `size` | The request's size bucket: 0 *small*, 1 *medium*, 2 *large*, 3 *huge* | The router's token estimate |
-| 4 | `budget_ok` | 1 if the agent has a balance and today's settled spend is under its cap | CreditEscrow, on chain |
+| 4 | `budget_ok` | 1 if the project has a balance and today's settled spend is under its cap | CreditEscrow, on chain |
 | 5 | `kill` | 1 if the owner has turned the kill switch on | PolicyRegistry, on chain |
 
 ## The circuit's outputs
@@ -107,7 +107,7 @@ Rules have to fit in the six input bits: tiers, size buckets and the two flags. 
 ## Immutability, precisely
 
 - **A circuit never changes.** The processor stores its netlist and nobody, including us, has a function that edits it.
-- **Your agent's circuit can change, but only you can change it.** `setCircuit` is owner-only, it costs a transaction, and it emits an event on chain. The router can't do it.
+- **Your project's circuit can change, but only you can change it.** `setCircuit` is owner-only, it costs a transaction, and it emits an event on chain. The router can't do it.
 - **A new rule is a new circuit.** There is no "edit".
 
 For the gate-level wiring and how circuits are built and tested, see [Circuits and simulation](../policies.md).

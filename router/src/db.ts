@@ -315,6 +315,21 @@ export class Store {
   }
 
   /**
+   * What one agent has used but CreditEscrow hasn't debited yet: receipts not in a batch, plus
+   * receipts in a batch that isn't confirmed on chain. All time, not limited to a date range. The
+   * owner app holds this back from withdrawals so the usage can still be paid when it settles.
+   */
+  pendingForAgent(agentId: bigint): bigint {
+    const rows = this.db
+      .prepare(
+        `SELECT r.cost_wei FROM receipts r LEFT JOIN batches b ON b.batch_id = r.batch_id
+         WHERE r.agent_id = ? AND (r.batch_id IS NULL OR b.status IN ('pending', 'sent'))`,
+      )
+      .all(agentId.toString()) as { cost_wei: string }[];
+    return rows.reduce((sum, r) => sum + BigInt(r.cost_wei), 0n);
+  }
+
+  /**
    * One agent's requests since `sinceMs`, across every key it has had: totals, zero-filled time
    * buckets of `bucketMs` (aligned to the epoch, so to UTC), spend by served model, and the newest
    * `receiptLimit` requests.

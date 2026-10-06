@@ -11,7 +11,7 @@ import { ErrorNote, errorText } from "./common.tsx";
 const circuits = POLICYROUTER.circuits as Readonly<Record<string, bigint>>;
 
 /**
- * Creates an agent in two transactions: register it (key hash, policy circuit, daily cap), then
+ * Creates a project (an agent record in PolicyRegistry) in two transactions: register it (key hash, policy circuit, daily cap), then
  * deposit its first OKB. The key is generated in the browser and only its hash leaves it.
  */
 export function CreateAgent({ wallet, onCreated, onCancel }: { wallet: Wallet; onCreated: (agentId: bigint, key: string) => void; onCancel?: () => void }) {
@@ -36,7 +36,7 @@ export function CreateAgent({ wallet, onCreated, onCancel }: { wallet: Wallet; o
     }
     const key = generateKey();
     try {
-      setStep("Registering the agent (1 of 2)…");
+      setStep("Registering the project (1 of 2)…");
       const receipt = await wallet.write({
         address: CONFIG.registry,
         abi: registryAbi,
@@ -70,7 +70,7 @@ export function CreateAgent({ wallet, onCreated, onCancel }: { wallet: Wallet; o
 
   return (
     <form className="card" onSubmit={submit} aria-labelledby="create-title">
-      <h2 id="create-title">New agent</h2>
+      <h2 id="create-title">New project</h2>
       <div className="fields">
         <label>
           Name (optional, kept in this browser)
@@ -99,10 +99,10 @@ export function CreateAgent({ wallet, onCreated, onCancel }: { wallet: Wallet; o
           <input data-testid="create-deposit" inputMode="decimal" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
         </label>
       </div>
-      <p className="muted small">Two transactions: register the agent, then deposit. Unused OKB can be withdrawn at any time.</p>
+      <p className="muted small">Two transactions: register the project, then deposit. Unused OKB can be withdrawn at any time.</p>
       <div className="row">
         <button type="submit" className="btn btn-primary" disabled={!!step} data-testid="create-submit">
-          {step ?? "Create agent"}
+          {step ?? "Create project"}
         </button>
         {onCancel && (
           <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={!!step}>

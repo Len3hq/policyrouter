@@ -18,7 +18,7 @@ export const ERR = {
   unknownModel: (model: string) => errorBody("model_not_found", `Unknown model '${model}'. See GET /v1/models.`),
   rateLimited: () => errorBody("rate_limit_exceeded", "Too many requests for this API key. Slow down."),
   policyDenied: (receipt: ReceiptJson) =>
-    errorBody("policy_denied", "The agent's policy circuit denied this request. See policyrouter_receipt.", {
+    errorBody("policy_denied", "This project's policy circuit denied this request. See policyrouter_receipt.", {
       policyrouter_receipt: receipt,
     }),
   policyUnavailable: () =>

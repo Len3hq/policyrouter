@@ -2,23 +2,23 @@
 
 From nothing to a working agent in about a minute. You need a browser wallet (OKX Wallet, MetaMask, Rabby…) with a little OKB on **X Layer**.
 
-## 1. Create an agent
+## 1. Create a project
 
 Open the web app and connect your wallet. If the wallet is on another network, the app offers to switch it to X Layer (chain 196) and adds the network if your wallet doesn't know it.
 
-On **New agent**, choose:
+On **New project**, choose:
 
 | Field | What it is | Default |
 | --- | --- | --- |
 | **Policy** | The circuit that decides every request. You can change it later. | Budget Guard |
-| **Daily cap** | The most OKB the agent may spend per UTC day | 0.001 OKB |
-| **First deposit** | The OKB the agent's requests are paid from | 0.001 OKB |
+| **Daily cap** | The most OKB the project may spend per UTC day | 0.001 OKB |
+| **First deposit** | The OKB your agent's requests are paid from | 0.001 OKB |
 
-The app sends two transactions: it registers the agent, then deposits.
+The app sends two transactions: it registers the project, then deposits.
 
 ## 2. Save the key
 
-The app shows your agent's API key **once**:
+The app shows the project's API key **once**:
 
 ```
 pr-live-3f9a1c7e5b2d48a06c91e0f4b7d2a85c13e69f0a4d27b8c1
@@ -79,7 +79,7 @@ env_key = "OPENAI_API_KEY"
 wire_api = "responses"
 ```
 
-Then run `codex` with `OPENAI_API_KEY` set to your agent's key. Codex 0.160 no longer supports `wire_api = "chat"`, so use `"responses"`.
+Then run `codex` with `OPENAI_API_KEY` set to your project's key. Codex 0.160 no longer supports `wire_api = "chat"`, so use `"responses"`.
 
 ### Claude Code
 
@@ -112,7 +112,7 @@ The tier decides whether the model thinks. An agent can't switch thinking on at 
 
 ## 4. Watch it work
 
-Back in the app, your agent's dashboard shows its balance, today's spend against the cap, and a count of allowed, downgraded and denied requests. Each request in the list has a **verify** link.
+Back in the app, the project's dashboard shows its balance, today's spend against the cap, and a count of allowed, downgraded and denied requests. Each request in the list has a **verify** link.
 
 Try the [kill switch](owner-app.md#the-kill-switch): turn it on and your agent's next request gets a `403 policy_denied`. Turn it off and requests flow again.
 

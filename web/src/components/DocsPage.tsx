@@ -122,7 +122,7 @@ export function DocsPage({ source = site }: { source?: DocsSite }) {
               <a href="/verify">Verify a receipt</a>
             </li>
             <li>
-              <a href="/">Owner app</a>
+              <a href="/app">Owner app</a>
             </li>
           </ul>
         </div>

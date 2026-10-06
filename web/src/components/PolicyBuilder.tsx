@@ -34,8 +34,8 @@ function outcome(rule: CustomRule, tier: Tier, size: Size) {
 
 /**
  * Build a custom policy: three settings → a NAND circuit proven against the rule on all 64 inputs →
- * a simulation on the agent's own requests → its cost → tape-out on PolicyRouter's processor →
- * point the agent at it. Rules that equal a template, or a circuit someone already taped out, reuse it.
+ * a simulation on the project's own requests → its cost → tape-out on PolicyRouter's processor →
+ * point the project at it. Rules that equal a template, or a circuit someone already taped out, reuse it.
  */
 export function PolicyBuilder({ agentId, apiKey, currentCircuit, wallet, onDone }: { agentId: bigint; apiKey?: string; currentCircuit: bigint; wallet: Wallet; onDone: () => void }) {
   const [rule, setRule] = useState<CustomRule>({ maxTier: 2, overTier: "downgrade", maxSize: 2 });
@@ -97,7 +97,7 @@ export function PolicyBuilder({ agentId, apiKey, currentCircuit, wallet, onDone 
       }
       // 3. point the agent at it
       if (circuitId !== currentCircuit) {
-        setStep(reuse === undefined ? "Switching the agent to it (3 of 3)…" : "Switching the agent…");
+        setStep(reuse === undefined ? "Switching the project to it (3 of 3)…" : "Switching the project…");
         await wallet.write({ address: CONFIG.registry, abi: registryAbi, functionName: "setCircuit", args: [agentId, circuitId] });
       }
       onDone();
@@ -204,7 +204,7 @@ export function PolicyBuilder({ agentId, apiKey, currentCircuit, wallet, onDone 
       </div>
 
       <button type="button" className="btn btn-primary" disabled={!!step || existing === undefined && !template} onClick={() => void apply()} data-testid="builder-apply">
-        {step ?? (reuse !== undefined ? (reuse === currentCircuit ? "Already this agent's policy" : `Use circuit #${reuse}`) : "Tape out and use this policy")}
+        {step ?? (reuse !== undefined ? (reuse === currentCircuit ? "Already this project's policy" : `Use circuit #${reuse}`) : "Tape out and use this policy")}
       </button>
       <ErrorNote error={error} />
     </section>

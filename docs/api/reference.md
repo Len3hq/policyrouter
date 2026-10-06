@@ -11,12 +11,12 @@ The router speaks three wire formats and a few extras. Replace `YOUR_ROUTER_URL`
 | `GET /v1/models` | The four models and their tiers | none |
 | `GET /v1/receipts/:requestId` | A stored receipt, with its settlement and proof | none |
 | `GET /v1/simulate` | What each policy would have done to your recent requests | optional |
-| `GET /v1/usage` | Your agent's counts, spend and recent requests | Bearer key |
+| `GET /v1/usage` | Your project's counts, spend and recent requests | Bearer key |
 | `GET /health` | The router's address and signing domain | none |
 
 ## Authentication
 
-Your agent's API key looks like `pr-live-` followed by 48 hex characters. Send it as a bearer token:
+Your project's API key looks like `pr-live-` followed by 48 hex characters. Send it as a bearer token:
 
 ```
 Authorization: Bearer pr-live-3f9a…

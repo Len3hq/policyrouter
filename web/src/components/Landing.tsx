@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, MotionConfig, motion, type Variants } from "motion/react";
-import { ArrowRight, ArrowUpRight, Gauge, Key, Play, Power, Receipt, Wallet } from "@phosphor-icons/react";
+import { ArrowRight, ArrowUpRight, Gauge, Key, Play, Power, Receipt, SquaresFour, Wallet } from "@phosphor-icons/react";
 import { POLICYROUTER, SIZE_NAMES, TEMPLATES, TIER_NAMES, inputPins, simulate, type Size, type Tier } from "@policyrouter/policy";
 import type { SimResponse } from "../lib/api.ts";
 import { PolicyCards } from "./PolicyCards.tsx";
@@ -28,7 +28,7 @@ function Reveal({ children, delay = 0, className, as = "div" }: { children: Reac
 }
 
 /** The signed-out front page: what PolicyRouter does, why it can be trusted, and how to start. */
-export function Landing({ onConnect, sampleSim }: { onConnect: () => void; sampleSim?: SimResponse }) {
+export function Landing({ onConnect, sampleSim, connected = false }: { onConnect: () => void; sampleSim?: SimResponse; connected?: boolean }) {
   return (
     <MotionConfig reducedMotion="user">
       <div className="landing">
@@ -36,10 +36,10 @@ export function Landing({ onConnect, sampleSim }: { onConnect: () => void; sampl
           <div className="lp-hero-copy">
             <p className="eyebrow">Policy firewall for AI agents on X Layer</p>
             <h1 id="lp-title">Every request your agent sends, checked on chain.</h1>
-            <p className="lead">Each agent gets an OpenAI-compatible key. A circuit on X Layer allows, downgrades or denies every call.</p>
+            <p className="lead">Create a project, give its OpenAI-compatible key to your agent. A circuit on X Layer allows, downgrades or denies every call.</p>
             <div className="lp-cta">
-              <button type="button" className="btn btn-primary btn-lg" onClick={onConnect}>
-                <Wallet weight="bold" /> Connect wallet
+              <button type="button" className="btn btn-primary btn-lg" onClick={onConnect} data-testid="hero-cta">
+                {connected ? <SquaresFour weight="bold" /> : <Wallet weight="bold" />} {connected ? "Open dashboard" : "Connect wallet"}
               </button>
               <a className="btn btn-text btn-lg" href="/docs">
                 Read the docs <ArrowRight weight="bold" />
@@ -84,7 +84,7 @@ export function Landing({ onConnect, sampleSim }: { onConnect: () => void; sampl
             </Reveal>
             <Reveal as="article" className="cell cell-controls" delay={0.08}>
               <h3>Your wallet holds the controls</h3>
-              <p className="muted">Only the agent's owner can change its limits, and each change is an on-chain transaction anyone can see.</p>
+              <p className="muted">Only the project's owner can change its limits, and each change is an on-chain transaction anyone can see.</p>
               <ul className="control-chips">
                 <li>
                   <Power weight="bold" /> Kill switch
@@ -120,8 +120,8 @@ export function Landing({ onConnect, sampleSim }: { onConnect: () => void; sampl
               </h2>
             </Reveal>
             <ol className="how-list">
-              <HowStep i={0} title="Create an agent">
-                Connect a wallet, pick a policy, set a daily cap and deposit OKB. You get an API key.
+              <HowStep i={0} title="Create a project">
+                Connect a wallet, pick a policy, set a daily cap and deposit OKB. You get an API key for your agent.
               </HowStep>
               <HowStep i={1} title="Point your client at the router">
                 Set two environment variables. OpenAI SDKs, LangChain, Codex and Claude Code work unchanged.

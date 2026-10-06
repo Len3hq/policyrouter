@@ -1,10 +1,10 @@
 # Router
 
-The router is an OpenAI-compatible HTTP service. Every request goes through the agent's policy circuit before any model provider sees it. Source: [`router/`](../router).
+The router is an OpenAI-compatible HTTP service. Every request goes through the project's policy circuit before any model provider sees it. Source: [`router/`](../router).
 
 ```bash
 export OPENAI_BASE_URL=http://localhost:8787/v1   # your router
-export OPENAI_API_KEY=pr-live-...                 # your agent's key
+export OPENAI_API_KEY=pr-live-...                 # your project's key
 ```
 
 Any client that speaks the OpenAI chat completions API works unchanged: the OpenAI SDKs, LangChain, coding agents with an OpenAI-compatible mode.
@@ -28,7 +28,7 @@ POST /v1/chat/completions
   9. receipt       EIP-712 signed by the router key, stored, returned with the response
 
 every SETTLE_INTERVAL_MS (default 5 min)
- 10. settle        unsettled receipts → Merkle root + per-agent totals → CreditEscrow.settle()
+ 10. settle        unsettled receipts → Merkle root + per-project totals → CreditEscrow.settle()
                    each receipt stores its proof; GET /v1/receipts/:id returns it
 ```
 
@@ -42,9 +42,9 @@ The router **fails closed**: if it can't read chain state or call `eval()`, it r
 | `POST /v1/responses` | OpenAI **Responses API** (what Codex uses). Policy-checked, then forwarded to the provider's `/responses` |
 | `POST /v1/messages` | Anthropic **Messages API** (what Claude Code uses). Key as `x-api-key` or a bearer token. Policy-checked, then forwarded to the provider's `/anthropic/v1/messages`. Errors use Anthropic's shape (`permission_error` for a denial) |
 | `POST /v1/messages/count_tokens` | A local token estimate for Claude Code. Nothing is served, so there is no policy check or charge |
-| `GET /v1/usage` | Authenticated with the agent's key: allowed, downgraded and denied counts, metered and unsettled spend, last 20 requests |
-| `GET /v1/usage/history?range=24h\|7d\|30d\|90d` | Authenticated with the agent's key. The **agent's** history across every key it has had (so it survives `rotateKey`; a rotated-out key gets 401): totals, zero-filled hourly (24h) or daily UTC buckets of allowed/downgraded/denied, spend and tokens, spend by served model, and the newest 200 requests. Powers the dashboard's Usage and Receipts tabs |
-| `GET /v1/simulate?template=…&limit=…` | Authenticated with the agent's key. Replays the key's own last `limit` requests (default 100, max 500), or a 20-request sample if it has none, through one template or all four. Returns allowed, downgraded and denied counts, spend with and without the policy, and `savingsPct`. See [policies.md](policies.md#policy-simulation) |
+| `GET /v1/usage` | Authenticated with the project's key: allowed, downgraded and denied counts, metered and unsettled spend, last 20 requests |
+| `GET /v1/usage/history?range=24h\|7d\|30d\|90d` | Authenticated with the project's key. The **project's** history across every key it has had (so it survives `rotateKey`; a rotated-out key gets 401): totals, zero-filled hourly (24h) or daily UTC buckets of allowed/downgraded/denied, spend and tokens, spend by served model, and the newest 200 requests. Powers the dashboard's Usage and Receipts tabs |
+| `GET /v1/simulate?template=…&limit=…` | Authenticated with the project's key. Replays the key's own last `limit` requests (default 100, max 500), or a 20-request sample if it has none, through one template or all four. Returns allowed, downgraded and denied counts, spend with and without the policy, and `savingsPct`. See [policies.md](policies.md#policy-simulation) |
 | `GET /v1/models` | The catalog: `cheap` (tier 0), `standard` (1), `premium` (2), `frontier` (3) |
 | `GET /v1/receipts/:requestId` | A stored receipt, its EIP-712 hash, whether it was allowed, and once settled: `settlement { batchId, status, root, proof, txHash, blockNumber }` |
 | `GET /health` | Router address and EIP-712 domain |
@@ -205,9 +205,9 @@ The shipped catalog uses DeepSeek for all four tiers. Adding a second provider n
 [`router/src/settler.ts`](../router/src/settler.ts) runs inside the router every `SETTLE_INTERVAL_MS` (default 5 minutes). `pnpm --filter @policyrouter/router settle` runs the same logic once, until nothing is left.
 
 Each cycle:
-1. Takes the oldest unsettled receipts (up to 2,000, from at most 100 distinct agents, to keep the transaction within gas limits).
+1. Takes the oldest unsettled receipts (up to 2,000, from at most 100 distinct projects, to keep the transaction within gas limits).
 2. Builds a Merkle tree over their EIP-712 hashes, using `batchTree` in `@policyrouter/policy`. This is the same encoding `CreditEscrow.isInBatch` checks.
-3. Sums the cost per agent. Agents whose receipts cost nothing are left out of the entries, but their receipts stay in the tree.
+3. Sums the cost per project. Projects whose receipts cost nothing are left out of the entries, but their receipts stay in the tree.
 4. Reads `nextBatchId` from the chain, and **commits the batch, its receipts and every proof to SQLite before sending anything**.
 5. Calls `CreditEscrow.settle(batchId, root, entries)` from the router wallet, waits for it, and records the tx hash, block and the `debited` amount from the `Settled` event.
 
@@ -222,7 +222,7 @@ An interval with no receipts sends no transaction.
 | Not landed, and the tx is gone or failed | Resends the same id, root and entries |
 | Our batch id holds a different root | Conflict: our receipts are released into the next batch |
 
-So a crash between any two steps can't lose a receipt or debit an agent twice. Each of these paths is tested against the real contract on a fork.
+So a crash between any two steps can't lose a receipt or debit a project twice. Each of these paths is tested against the real contract on a fork.
 
 ## Running it
 
@@ -250,7 +250,7 @@ pnpm --filter @policyrouter/router start
 pnpm --filter @policyrouter/router key:create --label my-agent --circuit 1 --cap 0.001
 ```
 
-This prints the key once, stores only its hash, and prints the `cast send` commands to register the agent on PolicyRegistry and fund it in CreditEscrow. In Phase 6 the web app takes this over.
+This prints the key once, stores only its hash, and prints the `cast send` commands to register the project on PolicyRegistry and fund it in CreditEscrow. In Phase 6 the web app takes this over.
 
 ## Security notes
 
@@ -263,7 +263,7 @@ This prints the key once, stores only its hash, and prints the `cast send` comma
 
 | Suite | Command | What it covers |
 | --- | --- | --- |
-| Unit (118) | `pnpm --filter @policyrouter/router test` | Catalog, USD→OKB conversion at the live rate, the price feed (fallback order, junk, expiry, jump guard), peak hours, cache-aware pricing and size buckets; refusing charged requests with no fresh price; price source back-off and selection; batch building (trees of 1, 2 and 1,000, per-agent sums, agent cap); the settler's crash, pending, dropped-tx and conflict paths against a fake escrow; forcing the tier's thinking mode; keys; rate limit; log redaction; the policy checker (allow, downgrade, deny, and refusing on eval failure, read failure or empty output); the full HTTP gateway with fake chain and provider (auth, validation, 429, deny, downgrade, 503, 502 without leaks, streaming, receipts, models) |
-| Integration (17) | `pnpm --filter @policyrouter/router test:integration` | A real router against an anvil fork of X Layer: Phase 2 deployed on the fork, Cheap Only taped out on the live processor, the real chain reader and provider adapter, and a mock provider. Covers allow, downgrade, kill switch, cap reached, unfunded, unknown key, RPC down, streaming, receipt replay, and checking no secret is logged. Settler: balances drop by each agent's sum, the root is on chain, every proof (a denial included) verifies in `isInBatch`, an empty interval sends nothing, and crashes after commit, after send, and with the tx still in the mempool are recovered without double debits |
+| Unit (118) | `pnpm --filter @policyrouter/router test` | Catalog, USD→OKB conversion at the live rate, the price feed (fallback order, junk, expiry, jump guard), peak hours, cache-aware pricing and size buckets; refusing charged requests with no fresh price; price source back-off and selection; batch building (trees of 1, 2 and 1,000, per-project sums, project cap); the settler's crash, pending, dropped-tx and conflict paths against a fake escrow; forcing the tier's thinking mode; keys; rate limit; log redaction; the policy checker (allow, downgrade, deny, and refusing on eval failure, read failure or empty output); the full HTTP gateway with fake chain and provider (auth, validation, 429, deny, downgrade, 503, 502 without leaks, streaming, receipts, models) |
+| Integration (17) | `pnpm --filter @policyrouter/router test:integration` | A real router against an anvil fork of X Layer: Phase 2 deployed on the fork, Cheap Only taped out on the live processor, the real chain reader and provider adapter, and a mock provider. Covers allow, downgrade, kill switch, cap reached, unfunded, unknown key, RPC down, streaming, receipt replay, and checking no secret is logged. Settler: balances drop by each project's sum, the root is on chain, every proof (a denial included) verifies in `isInBatch`, an empty interval sends nothing, and crashes after commit, after send, and with the tx still in the mempool are recovered without double debits |
 
 The integration suite needs `anvil` (Foundry) and runs in CI.

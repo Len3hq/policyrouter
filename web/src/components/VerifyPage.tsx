@@ -129,7 +129,7 @@ export function VerifyReport({ receipt: r, settlement, verify }: Verified) {
           <dd data-testid="decision">
             {allowed ? `Allowed: ${r.modelRequested} → served as ${r.modelServed}` : `Denied: ${r.modelRequested} was refused`}
           </dd>
-          <dt>Agent</dt>
+          <dt>Project</dt>
           <dd>#{r.agentId.toString()}</dd>
           <dt>Policy</dt>
           <dd>
