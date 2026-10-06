@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, sessionKey, type SimResponse } from "./lib/api.ts";
 import { listAgents, short, type AgentState } from "./lib/chain.ts";
+import { agentLabel } from "./lib/names.ts";
 import { useWallet } from "./lib/wallet.ts";
 import { ErrorNote, errorText } from "./components/common.tsx";
 import { CreateAgent } from "./components/CreateAgent.tsx";
 import { Dashboard } from "./components/Dashboard.tsx";
 import { KeyReveal } from "./components/KeyReveal.tsx";
-import { PolicyCards, templateForCircuit } from "./components/PolicyCards.tsx";
-import { Quickstart } from "./components/Quickstart.tsx";
+import { templateForCircuit } from "./components/PolicyCards.tsx";
 import { TransistorFacts } from "./components/TransistorFacts.tsx";
+import { Logo } from "./components/icons.tsx";
+import { Landing } from "./components/Landing.tsx";
 import { DocsPage } from "./components/DocsPage.tsx";
 import { VerifyPage } from "./components/VerifyPage.tsx";
 
@@ -25,10 +27,13 @@ export function App() {
 function Shell({ children, active, right, wide }: { children: React.ReactNode; active?: "verify" | "docs"; right?: React.ReactNode; wide?: boolean }) {
   return (
     <div className="app">
+      <a className="skip" href="#main">
+        Skip to content
+      </a>
       <header className="topbar">
-        <a className="brand" href="/">
-          <span className="logo" aria-hidden>
-            ⧉
+        <a className="brand" href="/" aria-label="PolicyRouter home">
+          <span className="logo">
+            <Logo />
           </span>
           <div>
             <strong>PolicyRouter</strong>
@@ -45,7 +50,9 @@ function Shell({ children, active, right, wide }: { children: React.ReactNode; a
           {right}
         </nav>
       </header>
-      <main className={wide ? "main-wide" : undefined}>{children}</main>
+      <main id="main" className={wide ? "main-wide" : undefined}>
+        {children}
+      </main>
       <TransistorFacts />
     </div>
   );
@@ -108,27 +115,7 @@ function OwnerApp() {
           </section>
         )}
 
-        {!wallet.address && (
-          <>
-            <section className="hero">
-              <h1>Every AI request passes a policy circuit nobody can change.</h1>
-              <p className="lead">
-                Fund an agent with OKB, pick a policy, get an OpenAI-compatible key. Before every request the router asks the policy circuit on X Layer to{" "}
-                <strong>allow, deny or downgrade</strong>, and returns a signed receipt anyone can re-check on chain.
-              </p>
-              <ol className="steps">
-                <li>Connect a wallet on X Layer</li>
-                <li>Create an agent: policy, daily cap, deposit</li>
-                <li>Set two environment variables in your agent</li>
-              </ol>
-            </section>
-            <Quickstart />
-            <section>
-              <h2 className="section-title">The policies</h2>
-              <PolicyCards sim={sampleSim} />
-            </section>
-          </>
-        )}
+        {!wallet.address && <Landing onConnect={() => void wallet.connect()} sampleSim={sampleSim} />}
 
         {wallet.address && !wallet.wrongNetwork && (
           <div className="layout">
@@ -148,7 +135,7 @@ function OwnerApp() {
                         setCreating(false);
                       }}
                     >
-                      <span>Agent #{a.agentId.toString()}</span>
+                      <span>{agentLabel(a.agentId)}</span>
                       <span className="muted small">
                         {templateForCircuit(a.circuitId)?.name ?? `circuit ${a.circuitId}`}
                         {a.killed ? " · killed" : ""}

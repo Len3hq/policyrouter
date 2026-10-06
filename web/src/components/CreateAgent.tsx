@@ -4,6 +4,7 @@ import { POLICYROUTER, TEMPLATES } from "@policyrouter/policy";
 import { generateKey, hashKey } from "../lib/api.ts";
 import { escrowAbi, registryAbi } from "../lib/chain.ts";
 import { CONFIG } from "../lib/config.ts";
+import { agentNames, MAX_NAME_LENGTH } from "../lib/names.ts";
 import type { Wallet } from "../lib/wallet.ts";
 import { ErrorNote, errorText } from "./common.tsx";
 
@@ -14,6 +15,7 @@ const circuits = POLICYROUTER.circuits as Readonly<Record<string, bigint>>;
  * deposit its first OKB. The key is generated in the browser and only its hash leaves it.
  */
 export function CreateAgent({ wallet, onCreated, onCancel }: { wallet: Wallet; onCreated: (agentId: bigint, key: string) => void; onCancel?: () => void }) {
+  const [name, setName] = useState("");
   const [template, setTemplate] = useState("budget-guard");
   const [cap, setCap] = useState("0.001");
   const [deposit, setDeposit] = useState("0.001");
@@ -52,6 +54,7 @@ export function CreateAgent({ wallet, onCreated, onCancel }: { wallet: Wallet; o
         })
         .find((ev) => ev?.eventName === "AgentRegistered")?.args.agentId;
       if (agentId === undefined) throw new Error("The registration succeeded but its AgentRegistered event was not found.");
+      agentNames.set(agentId, name);
 
       if (depositWei > 0n) {
         setStep("Depositing OKB (2 of 2)…");
@@ -68,6 +71,12 @@ export function CreateAgent({ wallet, onCreated, onCancel }: { wallet: Wallet; o
   return (
     <form className="card" onSubmit={submit} aria-labelledby="create-title">
       <h2 id="create-title">New agent</h2>
+      <div className="fields">
+        <label>
+          Name (optional, kept in this browser)
+          <input data-testid="create-name" placeholder="Discord bot" maxLength={MAX_NAME_LENGTH} value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+      </div>
       <fieldset className="choices">
         <legend>Policy</legend>
         {TEMPLATES.map((t) => (

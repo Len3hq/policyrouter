@@ -70,6 +70,18 @@ export const encodeReceiptHeader = (json: object) => Buffer.from(JSON.stringify(
 
 type Status = 400 | 401 | 403 | 404 | 429 | 500 | 502 | 503;
 
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+/** Time ranges for GET /v1/usage/history: how far back, and the chart bucket size. */
+export const HISTORY_RANGES: Readonly<Record<string, { spanMs: number; bucketMs: number }>> = {
+  "24h": { spanMs: DAY, bucketMs: HOUR },
+  "7d": { spanMs: 7 * DAY, bucketMs: DAY },
+  "30d": { spanMs: 30 * DAY, bucketMs: DAY },
+  "90d": { spanMs: 90 * DAY, bucketMs: DAY },
+};
+/** Newest requests returned with the history, for the receipts list. */
+const HISTORY_RECEIPTS = 200;
+
 export function createApp(deps: AppDeps): Hono {
   const { catalog, chain, providers, signer, store, limiter, price, log } = deps;
   const app = new Hono();
@@ -197,6 +209,40 @@ export function createApp(deps: AppDeps): Hono {
       timestamp: r.timestamp.toString(),
     }));
     return c.json({ ...u, spentWei: u.spentWei.toString(), unsettledWei: u.unsettledWei.toString(), recent });
+  });
+
+  // An agent's usage over a time range, for its dashboard charts. Keyed by agent rather than key, so
+  // history survives key rotation; the chain says which agent a live key belongs to, and a
+  // rotated-out key gets 401.
+  app.get("/v1/usage/history", async (c) => {
+    const key = keyFromAuthHeader(c.req.header("authorization"));
+    if (!key) return fail(c, 401, ERR.missingKey());
+    if (!isWellFormedKey(key)) return fail(c, 401, ERR.badKey());
+    const keyHash = hashKey(key);
+    if (!limiter.take(keyHash)) return fail(c, 429, ERR.rateLimited());
+    const range = c.req.query("range") ?? "7d";
+    const spec = HISTORY_RANGES[range];
+    if (!spec) return fail(c, 400, ERR.badRequest(`range must be one of ${Object.keys(HISTORY_RANGES).join(", ")}.`));
+
+    let agentId: bigint;
+    try {
+      agentId = (await chain.policyState(keyHash)).agentId;
+    } catch {
+      return fail(c, 503, ERR.policyUnavailable());
+    }
+    if (agentId === 0n) return fail(c, 401, ERR.badKey());
+
+    const now = Date.now();
+    const h = store.historyForAgent(agentId, now - spec.spanMs, spec.bucketMs, HISTORY_RECEIPTS, now);
+    return c.json({
+      agentId: agentId.toString(),
+      range,
+      bucketMs: spec.bucketMs,
+      totals: { ...h.totals, spentWei: h.totals.spentWei.toString(), unsettledWei: h.totals.unsettledWei.toString() },
+      series: h.series.map((b) => ({ ...b, spentWei: b.spentWei.toString() })),
+      byModel: h.byModel.map((m) => ({ ...m, spentWei: m.spentWei.toString() })),
+      receipts: h.receipts.map((r) => ({ ...r, costWei: r.costWei.toString() })),
+    });
   });
 
   app.post("/v1/chat/completions", async (c) => {

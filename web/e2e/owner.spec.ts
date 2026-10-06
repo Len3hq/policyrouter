@@ -72,6 +72,7 @@ test.describe.serial("owner flow", () => {
     await expect(page.getByTestId("agent-status")).toHaveText("Active");
     const heading = await page.getByRole("heading", { level: 2 }).filter({ hasText: "Agent #" }).first().textContent();
     agentId = BigInt(/Agent #(\d+)/.exec(heading!)![1]!);
+    await page.getByTestId("tab-policy").click();
     await expect(page.getByTestId("policy-budget-guard").getByTestId("current-policy")).toBeVisible();
 
     // the simulation panel is there for each policy (sample workload: no history yet)
@@ -87,16 +88,25 @@ test.describe.serial("owner flow", () => {
     expect(r.status).toBe(200);
     expect(r.body.model).toBe("standard");
 
-    // the dashboard counts it
+    // the dashboard counts it, charts it, and lists its receipt
+    await page.getByTestId("tab-usage").click();
     await page.getByTestId("refresh").click();
     await expect(page.getByTestId("usage-downgraded")).toHaveText("1");
+    await expect(page.getByTestId("usage").locator("svg").first()).toBeVisible();
     await expect(page.getByTestId("quickstart-env")).toContainText(apiKey);
+    await page.getByTestId("tab-receipts").click();
+    await expect(page.getByTestId("receipts").locator("tbody tr")).toHaveCount(1);
+    await expect(page.getByTestId("receipts")).toContainText("frontier → standard");
+    await page.getByTestId("verify-link").first().click();
+    await expect(page.getByTestId("receipt-check").getByTestId("decision")).toContainText("Allowed: frontier → served as standard", { timeout: 30_000 });
+    await page.getByTestId("tab-usage").click();
     await page.screenshot({ path: "test-results/screens/dashboard.png", fullPage: true });
   });
 
   test("custom policy: a rule equal to a template reuses its circuit; a new rule is taped out, used, and enforced", async ({ page }) => {
     await connect(page);
     await page.getByTestId(`agent-${agentId}`).click();
+    await page.getByTestId("tab-policy").click();
     const builder = page.getByTestId("builder");
 
     // standard + downgrade + large = Strict: no tape-out, just point at circuit 4
@@ -137,6 +147,7 @@ test.describe.serial("owner flow", () => {
     await page.reload();
     await page.getByTestId("connect").click();
     await page.getByTestId(`agent-${agentId}`).click();
+    await page.getByTestId("tab-policy").click();
     await page.getByTestId("b-tier-premium").check();
     await page.getByTestId("b-size-large").check();
     await expect(page.getByTestId("builder-apply")).toHaveText("Already this agent's policy");

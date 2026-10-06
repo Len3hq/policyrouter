@@ -28,10 +28,9 @@ export function SimulationPanel({ result, source, requests }: { result: SimResul
       </dl>
       <p className="sim-savings">
         <strong data-testid="sim-savings">{result.savingsPct.toFixed(1)}%</strong> saved
-        <span className="muted small">
-          {" "}
-          · spends <span className="mono">{okb(withPolicy, 8)}</span> instead of <span className="mono">{okb(without, 8)}</span> OKB
-        </span>
+      </p>
+      <p className="muted small sim-spend">
+        Spends <span className="mono">{okb(withPolicy, 8)}</span> instead of <span className="mono">{okb(without, 8)}</span> OKB
       </p>
     </div>
   );

@@ -49,6 +49,40 @@ export interface UnsettledReceipt {
   hash: Hex;
 }
 
+export type Decision = "allowed" | "downgraded" | "denied";
+
+export interface HistoryBucket {
+  /** Bucket start, ms since the epoch */
+  start: number;
+  allowed: number;
+  downgraded: number;
+  denied: number;
+  spentWei: bigint;
+  promptTokens: number;
+  completionTokens: number;
+}
+
+export interface HistoryReceipt {
+  requestId: Hex;
+  createdAt: number;
+  modelRequested: string;
+  modelServed: string;
+  decision: Decision;
+  costWei: bigint;
+  promptTokens: number;
+  completionTokens: number;
+  /** In a settlement batch (sent or confirmed) */
+  settled: boolean;
+}
+
+export interface AgentHistory {
+  totals: { requests: number; allowed: number; downgraded: number; denied: number; spentWei: bigint; unsettledWei: bigint; promptTokens: number; completionTokens: number };
+  series: HistoryBucket[];
+  byModel: { model: string; requests: number; spentWei: bigint; tokens: number }[];
+  /** Newest first */
+  receipts: HistoryReceipt[];
+}
+
 interface BatchRow {
   batch_id: number;
   root: Hex;
@@ -96,6 +130,7 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS receipts_unsettled ON receipts (batch_id) WHERE batch_id IS NULL;
       CREATE INDEX IF NOT EXISTS receipts_by_key ON receipts (key_hash, created_at);
+      CREATE INDEX IF NOT EXISTS receipts_by_agent ON receipts (agent_id, created_at);
       CREATE TABLE IF NOT EXISTS batches (
         batch_id     INTEGER PRIMARY KEY,
         root         TEXT NOT NULL,
@@ -277,6 +312,84 @@ export class Store {
       if (r.batch_id === null) out.unsettledWei += cost;
     }
     return out;
+  }
+
+  /**
+   * One agent's requests since `sinceMs`, across every key it has had: totals, zero-filled time
+   * buckets of `bucketMs` (aligned to the epoch, so to UTC), spend by served model, and the newest
+   * `receiptLimit` requests.
+   */
+  historyForAgent(agentId: bigint, sinceMs: number, bucketMs: number, receiptLimit: number, nowMs = Date.now()): AgentHistory {
+    const rows = this.db
+      .prepare(
+        `SELECT request_id, input_bits, output_bits, model_requested, model_served, prompt_tokens, completion_tokens,
+                cost_wei, batch_id, created_at
+         FROM receipts WHERE agent_id = ? AND created_at >= ? ORDER BY created_at DESC, rowid DESC`,
+      )
+      .all(agentId.toString(), sinceMs) as {
+      request_id: Hex;
+      input_bits: number;
+      output_bits: number;
+      model_requested: string;
+      model_served: string;
+      prompt_tokens: number;
+      completion_tokens: number;
+      cost_wei: string;
+      batch_id: number | null;
+      created_at: number;
+    }[];
+
+    const first = Math.floor(sinceMs / bucketMs) * bucketMs;
+    const series: HistoryBucket[] = [];
+    for (let t = first; t <= nowMs; t += bucketMs) {
+      series.push({ start: t, allowed: 0, downgraded: 0, denied: 0, spentWei: 0n, promptTokens: 0, completionTokens: 0 });
+    }
+    const totals = { requests: rows.length, allowed: 0, downgraded: 0, denied: 0, spentWei: 0n, unsettledWei: 0n, promptTokens: 0, completionTokens: 0 };
+    const byModel = new Map<string, { model: string; requests: number; spentWei: bigint; tokens: number }>();
+    const receipts: HistoryReceipt[] = [];
+
+    for (const r of rows) {
+      const allowed = (r.output_bits & 1) === 1;
+      const decision = !allowed ? "denied" : r.output_bits >> 1 < (r.input_bits & 3) ? "downgraded" : "allowed";
+      const cost = BigInt(r.cost_wei);
+      totals[decision]++;
+      totals.spentWei += cost;
+      if (r.batch_id === null) totals.unsettledWei += cost;
+      totals.promptTokens += r.prompt_tokens;
+      totals.completionTokens += r.completion_tokens;
+
+      const b = series[Math.floor((r.created_at - first) / bucketMs)];
+      if (b) {
+        b[decision]++;
+        b.spentWei += cost;
+        b.promptTokens += r.prompt_tokens;
+        b.completionTokens += r.completion_tokens;
+      }
+
+      if (allowed) {
+        const m = byModel.get(r.model_served) ?? { model: r.model_served, requests: 0, spentWei: 0n, tokens: 0 };
+        m.requests++;
+        m.spentWei += cost;
+        m.tokens += r.prompt_tokens + r.completion_tokens;
+        byModel.set(r.model_served, m);
+      }
+
+      if (receipts.length < receiptLimit) {
+        receipts.push({
+          requestId: r.request_id,
+          createdAt: r.created_at,
+          modelRequested: r.model_requested,
+          modelServed: r.model_served,
+          decision,
+          costWei: cost,
+          promptTokens: r.prompt_tokens,
+          completionTokens: r.completion_tokens,
+          settled: r.batch_id !== null,
+        });
+      }
+    }
+
+    return { totals, series, byModel: [...byModel.values()].sort((a, b) => (b.spentWei > a.spentWei ? 1 : b.spentWei < a.spentWei ? -1 : 0)), receipts };
   }
 
   close(): void {

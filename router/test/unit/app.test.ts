@@ -275,3 +275,61 @@ describe("other endpoints", () => {
     expect((await t.app.request("/v1/receipts/nope")).status).toBe(404);
   });
 });
+
+describe("GET /v1/usage/history", () => {
+  interface History {
+    agentId: string;
+    bucketMs: number;
+    totals: { requests: number; allowed: number; downgraded: number; denied: number; spentWei: string; promptTokens: number };
+    series: { start: number; allowed: number; downgraded: number; denied: number; spentWei: string }[];
+    byModel: { model: string; requests: number; spentWei: string }[];
+    receipts: { requestId: string; decision: string; modelServed: string; costWei: string; settled: boolean }[];
+  }
+  const history = (t: ReturnType<typeof makeApp>, key: string, range?: string) =>
+    t.app.request(`/v1/usage/history${range ? `?range=${range}` : ""}`, { headers: { authorization: `Bearer ${key}` } });
+
+  it("buckets an agent's decisions and spend, by served model, newest receipts first", async () => {
+    const t = setup(2n); // Cheap Only: frontier is downgraded to standard
+    await chat(t, { model: "cheap", ...msg });
+    await chat(t, { model: "frontier", ...msg });
+    t.chain.keys.set(hashKey(KEY), { agentId: 9n, circuitId: 2n, killed: true, budgetOk: true });
+    await chat(t, { model: "cheap", ...msg });
+    t.chain.keys.set(hashKey(KEY), { agentId: 9n, circuitId: 2n, killed: false, budgetOk: true });
+
+    const res = await history(t, KEY, "24h");
+    expect(res.status).toBe(200);
+    const h = (await res.json()) as History;
+    expect(h.agentId).toBe("9");
+    expect(h.bucketMs).toBe(3_600_000);
+    expect(h.totals).toMatchObject({ requests: 3, allowed: 1, downgraded: 1, denied: 1, promptTokens: 200 });
+    expect(h.series.length).toBeGreaterThanOrEqual(24);
+    const last = h.series.at(-1)!;
+    expect([last.allowed, last.downgraded, last.denied]).toEqual([1, 1, 1]);
+    expect(h.series.reduce((s, b) => s + BigInt(b.spentWei), 0n)).toBe(BigInt(h.totals.spentWei));
+    expect(h.byModel.map((m) => m.model).sort()).toEqual(["cheap", "standard"]);
+    expect(h.receipts.map((r) => r.decision)).toEqual(["denied", "downgraded", "allowed"]);
+    expect(h.receipts[0]!.costWei).toBe("0");
+    expect(h.receipts.every((r) => !r.settled)).toBe(true);
+  });
+
+  it("follows the agent across a key rotation, and refuses the rotated-out key", async () => {
+    const t = setup();
+    await chat(t, { model: "cheap", ...msg });
+    const next = generateKey();
+    t.chain.keys.delete(hashKey(KEY));
+    t.chain.keys.set(hashKey(next), { agentId: 9n, circuitId: 1n, killed: false, budgetOk: true });
+    await chat(t, { model: "cheap", ...msg }, next);
+
+    const h = (await (await history(t, next)).json()) as History;
+    expect(h.totals.requests).toBe(2);
+    expect((await history(t, KEY)).status).toBe(401);
+  });
+
+  it("400 for an unknown range, 401 without a key, 503 when the chain can't be read", async () => {
+    const t = setup();
+    expect((await history(t, KEY, "1y")).status).toBe(400);
+    expect((await t.app.request("/v1/usage/history")).status).toBe(401);
+    t.chain.failRead = true;
+    expect((await history(t, KEY)).status).toBe(503);
+  });
+});

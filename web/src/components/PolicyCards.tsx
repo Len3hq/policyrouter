@@ -28,20 +28,21 @@ export function PolicyCards({
         return (
           <article key={t.id} className={`card policy ${isCurrent ? "policy-current" : ""}`} data-testid={`policy-${t.id}`}>
             <header>
-              <h3>{t.name}</h3>
+              <h3>
+                <span className="policy-num">#{circuitId.toString()}</span> {t.name}
+              </h3>
               {isCurrent && (
                 <span className="pill pill-ok" data-testid="current-policy">
                   Current policy
                 </span>
               )}
             </header>
-            <p>{t.rule}</p>
-            <p className="muted small">
-              Circuit #{circuitId.toString()} · {t.circuit().gates.length} NAND gates ·{" "}
+            <p className="policy-rule">{t.rule}</p>
+            <p className="policy-meta">
+              <span>{t.circuit().gates.length} NAND gates</span>
               <a href={`${CONFIG.repo}/blob/main/circuits/proof/${t.id}.txt`} target="_blank" rel="noreferrer">
                 64/64 proof
-              </a>{" "}
-              ·{" "}
+              </a>
               <a href={`${CONFIG.explorer}/address/${CONFIG.processor}`} target="_blank" rel="noreferrer">
                 processor
               </a>

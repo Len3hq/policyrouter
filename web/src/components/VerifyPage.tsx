@@ -9,6 +9,32 @@ import { CopyButton, ErrorNote, errorText } from "./common.tsx";
 const ICON: Record<Check["status"], string> = { pass: "✓", fail: "✕", pending: "…", unavailable: "?" };
 const WORD: Record<Check["status"], string> = { pass: "Pass", fail: "Fail", pending: "Pending", unavailable: "Unavailable" };
 
+export interface Verified {
+  receipt: SignedReceipt;
+  settlement: Settlement | null;
+  verify: VerifyResult;
+}
+
+/** Fetches a receipt from the router by request id, or parses pasted JSON, then checks it on X Layer. */
+export async function fetchAndVerify(input: { id?: string; text?: string }): Promise<Verified> {
+  let parsed: { receipt: SignedReceipt; settlement: Settlement | null };
+  if (input.id) {
+    if (!/^0x[0-9a-fA-F]{64}$/.test(input.id)) throw new Error("A request id is 0x followed by 64 hex characters.");
+    const res = await fetch(`${CONFIG.routerUrl}/v1/receipts/${input.id}`);
+    if (res.status === 404) throw new Error("The router has no receipt with that id.");
+    if (!res.ok) throw new Error(`The router returned ${res.status}.`);
+    parsed = parseReceiptInput(await res.text());
+  } else {
+    parsed = parseReceiptInput(input.text ?? "");
+  }
+  const verify = await verifyReceiptOnChain(
+    { client: publicClient as never, chainId: CONFIG.chainId, processor: CONFIG.processor, registry: CONFIG.registry, escrow: CONFIG.escrow, rpcUrl: CONFIG.rpcUrl },
+    parsed.receipt,
+    parsed.settlement,
+  );
+  return { ...parsed, verify };
+}
+
 /**
  * Verifies a receipt with read-only calls: no wallet, no trust in the router. Open /verify?id=<requestId>
  * to fetch it from the router, or paste the JSON.
@@ -19,29 +45,14 @@ export function VerifyPage() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [result, setResult] = useState<{ receipt: SignedReceipt; settlement: Settlement | null; verify: VerifyResult }>();
+  const [result, setResult] = useState<Verified>();
 
   const run = useCallback(async (input: { id?: string; text?: string }) => {
     setError(undefined);
     setResult(undefined);
     setBusy(true);
     try {
-      let parsed: { receipt: SignedReceipt; settlement: Settlement | null };
-      if (input.id) {
-        if (!/^0x[0-9a-fA-F]{64}$/.test(input.id)) throw new Error("A request id is 0x followed by 64 hex characters.");
-        const res = await fetch(`${CONFIG.routerUrl}/v1/receipts/${input.id}`);
-        if (res.status === 404) throw new Error("The router has no receipt with that id.");
-        if (!res.ok) throw new Error(`The router returned ${res.status}.`);
-        parsed = parseReceiptInput(await res.text());
-      } else {
-        parsed = parseReceiptInput(input.text ?? "");
-      }
-      const verify = await verifyReceiptOnChain(
-        { client: publicClient as never, chainId: CONFIG.chainId, processor: CONFIG.processor, registry: CONFIG.registry, escrow: CONFIG.escrow, rpcUrl: CONFIG.rpcUrl },
-        parsed.receipt,
-        parsed.settlement,
-      );
-      setResult({ ...parsed, verify });
+      setResult(await fetchAndVerify(input));
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -95,7 +106,7 @@ export function VerifyPage() {
   );
 }
 
-function VerifyReport({ receipt: r, settlement, verify }: { receipt: SignedReceipt; settlement: Settlement | null; verify: VerifyResult }) {
+export function VerifyReport({ receipt: r, settlement, verify }: Verified) {
   const allowed = (r.outputBits & 1) === 1;
   const policy = templateForCircuit(r.circuitId);
   const verdictText =

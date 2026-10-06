@@ -76,6 +76,16 @@ export const registryAbi = [
     outputs: [],
   },
   {
+    type: "function",
+    name: "rotateKey",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "newKeyHash", type: "bytes32" },
+    ],
+    outputs: [],
+  },
+  {
     type: "event",
     name: "AgentRegistered",
     inputs: [
