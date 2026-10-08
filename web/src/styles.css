@@ -186,6 +186,9 @@ a.brand { color: inherit; text-decoration: none; }
 /* verify page */
 .verify { display: grid; gap: 1rem; }
 .grow { flex: 1; min-width: 16rem; }
+.examples { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-top: .75rem; }
+.examples .btn { font-weight: 450; }
+.examples .btn strong { font-weight: 600; }
 .paste { margin-top: .75rem; }
 .paste textarea { width: 100%; margin: .5rem 0; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: .6rem; font-size: .8rem; }
 .verdict h2 { margin: 0; }

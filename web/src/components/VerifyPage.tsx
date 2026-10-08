@@ -6,6 +6,12 @@ import { CONFIG } from "../lib/config.ts";
 import { templateForCircuit } from "./PolicyCards.tsx";
 import { CopyButton, ErrorNote, errorText } from "./common.tsx";
 
+// Real mainnet receipts, settled on chain, so anyone can try the page without having made a request.
+const EXAMPLES = [
+  { id: "0x8ae51809784dfea37958b2e9768e823bdb12cc28ebf70dd5b622322c930a0005", label: "Allowed", detail: "a Claude Code request, settled in batch 1" },
+  { id: "0x2bb3a79fd39bdeae11786a91c796524f755989804f0ae2f05873bbccdb1aa086", label: "Denied", detail: "the kill switch was on" },
+] as const;
+
 const ICON: Record<Check["status"], string> = { pass: "✓", fail: "✕", pending: "…", unavailable: "?" };
 const WORD: Record<Check["status"], string> = { pass: "Pass", fail: "Fail", pending: "Pending", unavailable: "Unavailable" };
 
@@ -90,6 +96,27 @@ export function VerifyPage() {
             Fetch and verify
           </button>
         </form>
+        <div className="examples" data-testid="verify-examples">
+          <span className="muted small">No receipt yet? Try one from mainnet:</span>
+          {EXAMPLES.map((ex) => (
+            <button
+              key={ex.id}
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={busy}
+              data-testid={`verify-example-${ex.label.toLowerCase()}`}
+              title={ex.id}
+              onClick={() => {
+                setId(ex.id);
+                history.replaceState(null, "", `/verify?id=${ex.id}`);
+                void run({ id: ex.id });
+              }}
+            >
+              <strong>{ex.label}</strong>
+              <span className="muted">{ex.detail}</span>
+            </button>
+          ))}
+        </div>
         <details className="paste">
           <summary className="muted">…or paste a receipt or a router response</summary>
           <textarea data-testid="verify-paste" rows={8} className="mono" value={text} onChange={(e) => setText(e.target.value)} placeholder='{"receipt": {...}, "settlement": {...}}' />

@@ -50,7 +50,7 @@ cast call 0x11FF9976c86E4C868a803Bc9B5E1ba7749226f99 "eval(uint256,bytes)(bytes)
 # 0x00  → deny
 ```
 
-Or open any receipt at **`/verify?id=<requestId>`** in the web app; no wallet needed.
+Or open any receipt at **`/verify?id=<requestId>`** in the web app; no wallet needed. The Verify page has two one-click examples from mainnet: an allowed Claude Code request ([`0x8ae5…0005`](https://web-production-74f66.up.railway.app/verify?id=0x8ae51809784dfea37958b2e9768e823bdb12cc28ebf70dd5b622322c930a0005)) and a request denied by the kill switch ([`0x2bb3…a086`](https://web-production-74f66.up.railway.app/verify?id=0x2bb3a79fd39bdeae11786a91c796524f755989804f0ae2f05873bbccdb1aa086)).
 
 Or check all 64 rows: `pnpm --filter @policyrouter/circuits check 1 budget-guard`. The mainnet result is in [circuits/proof/budget-guard.txt](circuits/proof/budget-guard.txt).
 

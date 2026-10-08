@@ -66,7 +66,16 @@ Receipts make cheating *detectable*. They don't make it impossible: see [Securit
 
 ## Try it with a real receipt
 
-This is a real receipt from X Layer mainnet: a **denied** request, made with the kill switch on, and settled in batch 0. Open [/verify](/verify), expand *or paste a receipt*, paste this, and press *Verify pasted JSON*. All four checks should pass. (Public RPCs keep old chain state for a limited time. If *Chain inputs* ever says *unavailable* for an old receipt, the RPC has pruned that block; an archive RPC will check it.)
+The quickest way: open [/verify](/verify) and press one of the two examples under the request id box. Both are real receipts from X Layer mainnet, settled on chain:
+
+| Example | Request id | What happened |
+| --- | --- | --- |
+| **Allowed** | `0x8ae51809784dfea37958b2e9768e823bdb12cc28ebf70dd5b622322c930a0005` | A Claude Code request (18,072 prompt tokens) allowed by Budget Guard, settled in batch 1 |
+| **Denied** | `0x2bb3a79fd39bdeae11786a91c796524f755989804f0ae2f05873bbccdb1aa086` | A request refused because the kill switch was on, settled in batch 0 |
+
+Or open `/verify?id=<request id>` with either id. All four checks should pass.
+
+You can also check a receipt without asking the router for it. Below is the denied one in full. Open [/verify](/verify), expand *or paste a receipt*, paste this, and press *Verify pasted JSON*. All four checks should pass. (Public RPCs keep old chain state for a limited time. If *Chain inputs* ever says *unavailable* for an old receipt, the RPC has pruned that block; an archive RPC will check it.)
 
 ```json
 {
